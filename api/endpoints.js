@@ -29,10 +29,10 @@ export const ENDPOINTS = {
 
 
   ORDERS: '/orders/',
-  ORDER_DETAIL: (id) => `orders/${id}/`,
+  ORDER_DETAIL: (id) => `/orders/${id}/`,
   KOT: '/orders/kot/',
-  BILL: '/orders/bill/',
-  PLATFORMS: '/core/settings/platforms',
-  PLATFORM_DETAIL: (id) => `/orders/platforms/${id}/`,
+  PRINT_BILL: '/orders/bill/',
+  PLATFORMS: '/core/settings/platforms/',
+  PLATFORM_DETAIL: (id) => `/orders/settings/platforms/${id}/`,
 
 };

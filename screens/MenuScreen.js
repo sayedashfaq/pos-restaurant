@@ -49,7 +49,7 @@ export default function MenuScreen() {
 
   const [newCustomer, setNewCustomer] = useState('');
   const [newPhone, setNewPhone] = useState('');
-  const [newCountryCode, setNewCountryCode] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [newAddress, setNewAddress] = useState('');
 
   const [menuItems, setMenuItems] = useState([]);
@@ -62,8 +62,16 @@ export default function MenuScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [cartTotalItems, setCartTotalItems] = useState(0);
+
+
   const navigation = useNavigation();
 
+
+useEffect(() => {
+  const total = cart.reduce((sum, item) => sum + item.quantity, 0);
+  setCartTotalItems(total);
+}, [cart]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -89,7 +97,7 @@ export default function MenuScreen() {
         ]);
 
         setMenuItems(menusResponse);
-        setCategories(['All', ...categoriesResponse.map(cat => cat.name)]);
+        setCategories([...categoriesResponse.map(cat => cat.name)]);
         setCustomers(customersResponse);
         setTables(tablesResponse);
         setDeliveryBoys(deliveryBoysResponse);
@@ -120,8 +128,9 @@ export default function MenuScreen() {
 
   const filteredItems = menuItems.filter(item =>
     (selectedCategory === 'All' || item.category === selectedCategory) &&
-    item.name_ar.toLowerCase().includes(searchText.toLowerCase())
+    item.name .toLowerCase().includes(searchText.toLowerCase())
   );
+
 
 
   const handleAddToCart = (item) => {
@@ -161,16 +170,16 @@ export default function MenuScreen() {
     if (newCustomer.trim() !== '' && newPhone.trim() !== '') {
       try {
         const customerData = {
-          name: newCustomer,
-          phone: newPhone,
-          country_code: newCountryCode || '971'
+          full_name: newCustomer,
+          phone_number: newPhone,
+          email: newEmail
         };
         const createdCustomer = await UserAPI.createCustomer(customerData);
         setCustomers([...customers, createdCustomer]);
         setSelectedCustomer(createdCustomer);
         setNewCustomer('');
         setNewPhone('');
-        setNewCountryCode('');
+        setNewEmail('');
         setShowCustomerPicker(false);
       } catch (error) {
         Alert.alert('Error', 'Failed to create customer');
@@ -180,11 +189,14 @@ export default function MenuScreen() {
     }
   };
 
-
   const handlePlaceOrder = async (actionType) => {
     try {
+      if (!['kot', 'bill'].includes(actionType?.toLowerCase())) {
+        Alert.alert('Invalid Action', 'Action must be either KOT or BILL');
+        return;
+      }
+
       if (cart.length === 0) {
-        console.log("empmty")
         Alert.alert('Error', 'Please add items to the order');
         return;
       }
@@ -194,11 +206,9 @@ export default function MenuScreen() {
         return;
       }
 
-
       switch (selectedOrderType) {
         case 'Dine in':
           if (!selectedTable) {
-            console.log("table not slecetd")
             Alert.alert('Error', 'Please select a table');
             return;
           }
@@ -207,51 +217,35 @@ export default function MenuScreen() {
             return;
           }
           break;
-
         case 'Delivery':
-          if (!selectedAddress) {
-            Alert.alert('Error', 'Please enter delivery address');
-            return;
-          }
-          if (!selectedDeliveryBoy) {
-            Alert.alert('Error', 'Please select a delivery boy');
+          if (!selectedAddress || !selectedDeliveryBoy) {
+            Alert.alert('Error', 'Please complete delivery details');
             return;
           }
           break;
-
         case 'Takeaway':
           if (!selectedCounter) {
             Alert.alert('Error', 'Please select a counter');
             return;
           }
           break;
-
         case 'Online Order':
-          if (!selectedAddress) {
-            Alert.alert('Error', 'Please enter delivery address');
-            return;
-          }
-          if (!selectedPlatform) {
-            Alert.alert('Error', 'Please select a platform');
+          if (!selectedAddress || !selectedPlatform) {
+            Alert.alert('Error', 'Please complete online order details');
             return;
           }
           break;
       }
 
-
-
       const orderData = {
-
+      
         order_type: selectedOrderType?.toLocaleLowerCase().replace(" ", "_"),
-        customer_id: selectedCustomer?.id || null,
-        table_id: selectedTable?.id || null,
+        customer: selectedCustomer?.id,
+        table: selectedTable?.id || null,
         delivery_boy_id: selectedDeliveryBoy?.id || null,
         delivery_fee: deliveryFee || 0,
         guest_count: parseInt(numberOfGuests) || null,
         total_price: totalAmount,
-        action: actionType,
-
-
         items: cart.map(item => ({
           menu_id: item.id,
           quantity: item.quantity,
@@ -259,16 +253,26 @@ export default function MenuScreen() {
         }))
       };
 
-
       const response = await OrderAPI.createOrder(orderData);
+    console.log(response)
+      if (response?.id) {
+        
+        try {
+          await OrderAPI.printOrderBill(response.id, actionType);
+        } catch (printError) {
+          console.error('Printing failed:', printError);
+          Alert.alert('Printing Error', 'Order was created but printing failed');
+        }
 
-
-      Alert.alert('Success', 'Order placed successfully');
-      setCart([]);
-      navigation.navigate('Orders');
+        Alert.alert('Success', 'Order placed successfully');
+        setCart([]);
+        navigation.navigate('Orders');
+      } else {
+        throw new Error("Order creation failed: No ID returned");
+      }
 
     } catch (error) {
-      console.error('Order submission error:', error);
+      console.error('Order submission error:', error?.response?.data || error.message);
       Alert.alert('Error', error.message || 'Failed to place order');
     }
   };
@@ -283,7 +287,7 @@ export default function MenuScreen() {
           <Ionicons name="fast-food" size={40} color="#8e44ad" />
         )}
       </View>
-      <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+      <Text style={styles.itemName} numberOfLines={1}>{item.name_ar}</Text>
       <Text style={styles.itemPrice}>QAR {Number(item.price).toFixed(2)}</Text>
       <TouchableOpacity
         style={styles.addButton}
@@ -298,7 +302,7 @@ export default function MenuScreen() {
   const renderCartItem = ({ item }) => (
     <View style={styles.cartItem}>
       <Text style={styles.cartItemName} numberOfLines={1}>
-        {item.name}
+        {item.name_ar}
       </Text>
       <View style={styles.cartItemControls}>
         <TouchableOpacity
@@ -379,9 +383,10 @@ export default function MenuScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesContainer}
         >
-          {categories.map(cat => (
+          {categories.map((cat, index) => (
             <TouchableOpacity
-              key={cat}
+
+              key={`${cat}-${index}`}
               onPress={() => setSelectedCategory(cat)}
               style={[
                 styles.categoryItem,
@@ -400,6 +405,18 @@ export default function MenuScreen() {
       </View>
 
       <FlatList
+        data={filteredItems}
+        numColumns={2}
+        keyExtractor={item => item.id.toString()}
+        renderItem={renderMenuItem}
+        contentContainerStyle={styles.gridContainer}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="fast-food" size={60} color="#8e44ad" />
+            <Text style={styles.emptyText}>No items found</Text>
+            <Text style={styles.emptySubtext}>Try another category or search term</Text>
+          </View>
+        }
         ListHeaderComponent={
           <>
             <Text style={[styles.sectionTitle, styles.menuTitle]}>Menus</Text>
@@ -415,18 +432,6 @@ export default function MenuScreen() {
               </View>
             )}
           </>
-        }
-        data={filteredItems}
-        numColumns={2}
-        keyExtractor={item => item.id.toString()}
-        renderItem={renderMenuItem}
-        contentContainerStyle={styles.gridContainer}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="fast-food" size={60} color="#8e44ad" />
-            <Text style={styles.emptyText}>No items found</Text>
-            <Text style={styles.emptySubtext}>Try another category or search term</Text>
-          </View>
         }
         ListFooterComponent={
           <KeyboardAvoidingView
@@ -456,7 +461,7 @@ export default function MenuScreen() {
               </View>
             </View>
 
-            {/* DINE IN FIELDS */}
+
             {selectedOrderType === 'Dine in' && (
               <View style={styles.sectionBox}>
                 <Text style={styles.subSectionTitle}>Select Table</Text>
@@ -481,7 +486,7 @@ export default function MenuScreen() {
               </View>
             )}
 
-            {/* DELIVERY FIELDS */}
+
             {selectedOrderType === 'Delivery' && (
               <View style={styles.sectionBox}>
                 <Text style={styles.subSectionTitle}>Select Delivery Boy</Text>
@@ -506,7 +511,7 @@ export default function MenuScreen() {
               </View>
             )}
 
-            {/* TAKEAWAY FIELDS */}
+
             {selectedOrderType === 'Takeaway' && (
               <View style={styles.sectionBox}>
                 <Text style={styles.subSectionTitle}>Select Counter</Text>
@@ -522,7 +527,7 @@ export default function MenuScreen() {
               </View>
             )}
 
-            {/* ONLINE ORDER FIELDS */}
+
             {selectedOrderType === 'Online Order' && (
               <View style={styles.sectionBox}>
                 <Text style={styles.subSectionTitle}>Select Platform</Text>
@@ -547,16 +552,18 @@ export default function MenuScreen() {
               </View>
             )}
 
-            {/* COMMON FIELDS */}
+
             <View style={styles.sectionBox}>
               <Text style={styles.subSectionTitle}>Select Customer</Text>
               <TouchableOpacity
                 style={styles.pickerButton}
                 onPress={() => setShowCustomerPicker(true)}
               >
-                <Text style={selectedCustomer ? styles.pickerText : styles.pickerPlaceholder}>
-                  {selectedCustomer?.name || 'Select a customer...'}
-                </Text>
+                {selectedCustomer ? (
+                  <Text style={styles.pickerText}>{selectedCustomer.full_name}</Text>
+                ) : (
+                  <Text style={styles.pickerPlaceholder}>Select a customer...</Text>
+                )}
                 <Ionicons name="chevron-down" size={20} color="#888" />
               </TouchableOpacity>
 
@@ -600,8 +607,7 @@ export default function MenuScreen() {
         }
       />
 
-      {/* MODALS */}
-      {/* Customer Modal */}
+
       <Modal
         visible={showCustomerPicker}
         transparent={true}
@@ -614,7 +620,7 @@ export default function MenuScreen() {
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Select Customer</Text>
 
-          {/* Add Customer Form */}
+
           <View style={styles.addContainer}>
             <Text style={styles.subSectionTitle}>Add New Customer</Text>
             <TextInput
@@ -626,11 +632,11 @@ export default function MenuScreen() {
             />
             <View style={styles.phoneInputContainer}>
               <TextInput
-                style={[styles.addInput, styles.countryCodeInput]}
+                style={[styles.addInput, styles.emailInput]}
                 placeholder="Country Code"
                 keyboardType="phone-pad"
-                value={newCountryCode}
-                onChangeText={setNewCountryCode}
+                value={newEmail}
+                onChangeText={setNewEmail}
                 placeholderTextColor="#888"
               />
               <TextInput
@@ -664,7 +670,7 @@ export default function MenuScreen() {
                 }}
               >
                 <Text style={styles.modalItemText}>
-                  {item.name} ({item.country_code || '971'}{item.phone})
+                  {item.full_name} ({item.country_code || '971'}{item.phone_number})
                 </Text>
               </TouchableOpacity>
             )}
@@ -672,7 +678,7 @@ export default function MenuScreen() {
         </View>
       </Modal>
 
-      {/* Address Modal */}
+
       <Modal
         visible={showAddressPicker}
         transparent={true}
@@ -685,7 +691,7 @@ export default function MenuScreen() {
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Select Address</Text>
 
-          {/* Add Address Form */}
+
           <View style={styles.addContainer}>
             <TextInput
               style={styles.addInput}
@@ -730,7 +736,7 @@ export default function MenuScreen() {
         </View>
       </Modal>
 
-      {/* Table Modal */}
+
       <Modal
         visible={showTablePicker}
         transparent={true}
@@ -760,7 +766,7 @@ export default function MenuScreen() {
         </View>
       </Modal>
 
-      {/* Delivery Boy Modal */}
+
       <Modal
         visible={showDeliveryBoyPicker}
         transparent={true}
@@ -790,7 +796,7 @@ export default function MenuScreen() {
         </View>
       </Modal>
 
-      {/* Counter Modal */}
+
       <Modal
         visible={showCounterPicker}
         transparent={true}
@@ -820,7 +826,7 @@ export default function MenuScreen() {
         </View>
       </Modal>
 
-      {/* Platform Modal */}
+
       <Modal
         visible={showPlatformPicker}
         transparent={true}
@@ -850,12 +856,27 @@ export default function MenuScreen() {
         </View>
       </Modal>
 
-      {totalItems > 0 && (
+      {/* {totalItems > 0 &&  (
         <View style={styles.cartIndicator}>
-          <Ionicons name="cart" size={24} color="#fff" />
+          <Ionicons  name="cart" size={24} color="#fff" />
           <Text style={styles.cartCount}>{totalItems}</Text>
         </View>
-      )}
+      )} */}
+
+<View style={styles.cartIconContainer}>
+  <TouchableOpacity 
+    onPress={() => navigation.navigate('Orders')}
+    style={styles.cartIconButton}
+  >
+    <Ionicons name="cart" size={24} color="#fff" />
+    {cartTotalItems > 0 && (
+      <View style={styles.cartBadge}>
+        <Text style={styles.cartBadgeText}>{cartTotalItems}</Text>
+      </View>
+    )}
+  </TouchableOpacity>
+</View>
+
     </SafeAreaView>
   );
 }
@@ -1252,12 +1273,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  countryCodeInput: {
-    width: '30%',
+  emailInput: {
+    width: '50%',
     marginRight: 10,
   },
   phoneInput: {
-    width: '65%',
+    width: '50%',
   },
   addButtonModal: {
     backgroundColor: '#8e44ad',
@@ -1352,4 +1373,33 @@ const styles = StyleSheet.create({
     padding: 20,
     color: '#888',
   },
+
+
+  cartIconContainer: {
+  position: 'absolute',
+  top: 10,
+  right: 20,
+  zIndex: 100,
+},
+cartIconButton: {
+  position: 'relative',
+},
+cartBadge: {
+  position: 'absolute',
+  right: -5,
+  top: -5,
+  backgroundColor: 'red',
+  borderRadius: 10,
+  width: 20,
+  height: 20,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+cartBadgeText: {
+  color: 'white',
+  fontSize: 12,
+  fontWeight: 'bold',
+},
+
+
 });
