@@ -19,7 +19,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { MenuAPI, UserAPI, OrderAPI } from '../api/api';
+import { MenuAPI, UserAPI, OrderAPI, AuthAPI } from '../api/api';
+import * as Print from 'expo-print';
+import { WebView } from 'react-native-webview';
+
+import { buildPrintableHTML } from '../utils/convertJsonToHtml';
+
+
+
+
+
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = (width - 40) / 2;
@@ -64,14 +73,21 @@ export default function MenuScreen() {
 
   const [cartTotalItems, setCartTotalItems] = useState(0);
 
+  const [printDocuments, setPrintDocuments] = useState([]);
+  const [currentPrintIndex, setCurrentPrintIndex] = useState(0);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false)
+
+  const [printActionType, setPrintActionType] = useState('');
+
 
   const navigation = useNavigation();
 
 
-useEffect(() => {
-  const total = cart.reduce((sum, item) => sum + item.quantity, 0);
-  setCartTotalItems(total);
-}, [cart]);
+  useEffect(() => {
+    const total = cart.reduce((sum, item) => sum + item.quantity, 0);
+    setCartTotalItems(total);
+  }, [cart]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -126,11 +142,35 @@ useEffect(() => {
   }, [selectedOrderType]);
 
 
-  const filteredItems = menuItems.filter(item =>
-    (selectedCategory === 'All' || item.category === selectedCategory) &&
-    item.name .toLowerCase().includes(searchText.toLowerCase())
-  );
+  // const filteredItems = menuItems.filter(item =>
+  //   (selectedCategory === 'All' || item.category === selectedCategory) &&
+  //   item.name.toLowerCase().includes(searchText.toLowerCase())
+  // );
 
+
+  const categoryMap = {};
+  categories.forEach(cat => {
+    categoryMap[cat.id] = cat.name;
+  });
+
+ const filteredItems = menuItems.filter(item => {
+  const categoryName = categoryMap[item.category_id]; // Use your actual category ID property name
+  
+  const categoryMatch = selectedCategory === 'All' || categoryName === selectedCategory;
+  const searchMatch = item.name.toLowerCase().includes(searchText.toLowerCase());
+  
+  return categoryMatch && searchMatch;
+});
+
+
+  const handleLogout = async () => {
+    try {
+      await AuthAPI.logout();
+      navigation.replace('Login');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to logout. Please try again.');
+    }
+  };
 
 
   const handleAddToCart = (item) => {
@@ -238,7 +278,7 @@ useEffect(() => {
       }
 
       const orderData = {
-      
+
         order_type: selectedOrderType?.toLocaleLowerCase().replace(" ", "_"),
         customer: selectedCustomer?.id,
         table: selectedTable?.id || null,
@@ -254,19 +294,30 @@ useEffect(() => {
       };
 
       const response = await OrderAPI.createOrder(orderData);
-   
-     if (response?.id) {
-  try {
-    await OrderAPI.printOrderBill(response.id, actionType);
-  } catch (printError) {
-    console.error('Printing failed:', printError);
-    Alert.alert('Printing Error', 'Order was created but printing failed');
-  }
+
+      if (response?.id) {
+        try {
+          //  array of print documents
+          const docs = await OrderAPI.printOrderBill(response.id, actionType);
+          setPrintDocuments(docs);
+          setCurrentPrintIndex(0);
+          setShowPrintPreview(true);
 
 
-        Alert.alert('Success', 'Order placed successfully');
-        setCart([]);
-        navigation.navigate('Orders');
+          handlePrintAll();
+        } catch (printError) {
+          console.error('Printing failed:', printError);
+          Alert.alert('Printing Error', 'Order was created but printing failed');
+
+        }
+
+
+
+        // Alert.alert('Success', 'Order placed successfully');
+        // setCart([]);
+        // navigation.navigate('Orders');
+
+
       } else {
         throw new Error("Order creation failed: No ID returned");
       }
@@ -278,15 +329,54 @@ useEffect(() => {
   };
 
 
+
+  //printingfunc
+  const handlePrintAll = async () => {
+    setIsPrinting(true);
+    try {
+      for (let i = 0; i < printDocuments.length; i++) {
+        setCurrentPrintIndex(i);
+
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        await Print.printAsync({
+          html: printDocuments[i].html,
+          orientation: Print.Orientation.portrait,
+          paperSize: { width: 210, height: 297 }
+        });
+
+       
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      
+      setCart([]);
+    } catch (error) {
+      Alert.alert('Print Error', `Failed to print: ${error.message}`);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+
+  const closePrintPreview = () => {
+    setShowPrintPreview(false);
+    navigation.navigate('Orders');
+  };
+
+
+
+
   const renderMenuItem = ({ item }) => (
     <View style={styles.gridItem}>
-      <View style={styles.itemImagePlaceholder}>
+      {/* <View style={styles.itemImagePlaceholder}>
         {item.image ? (
           <Image source={{ uri: item.image }} style={styles.itemImage} />
         ) : (
           <Ionicons name="fast-food" size={40} color="#8e44ad" />
         )}
-      </View>
+      </View> */}
       <Text style={styles.itemName} numberOfLines={1}>{item.name_ar}</Text>
       <Text style={styles.itemPrice}>QAR {Number(item.price).toFixed(2)}</Text>
       <TouchableOpacity
@@ -297,6 +387,10 @@ useEffect(() => {
       </TouchableOpacity>
     </View>
   );
+
+
+
+
 
 
   const renderCartItem = ({ item }) => (
@@ -357,7 +451,7 @@ useEffect(() => {
     <SafeAreaView style={styles.container}>
       <View style={styles.fixedHeader}>
         <View style={styles.header}>
-          <Text style={styles.title}>Welcome [User]</Text>
+          <Text style={styles.title}> NassCafe</Text>
         </View>
 
         <View style={styles.searchContainer}>
@@ -413,6 +507,7 @@ useEffect(() => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="fast-food" size={60} color="#8e44ad" />
+
             <Text style={styles.emptyText}>No items found</Text>
             <Text style={styles.emptySubtext}>Try another category or search term</Text>
           </View>
@@ -634,7 +729,7 @@ useEffect(() => {
               <TextInput
                 style={[styles.addInput, styles.emailInput]}
                 placeholder="Email"
-              
+
                 value={newEmail}
                 onChangeText={setNewEmail}
                 placeholderTextColor="#888"
@@ -677,6 +772,53 @@ useEffect(() => {
           />
         </View>
       </Modal>
+
+
+
+
+      {/* print modal */}
+      <Modal visible={showPrintPreview} transparent={false} animationType="slide">
+        <SafeAreaView style={styles.printPreviewContainer}>
+          <View style={styles.printPreviewHeader}>
+            <Text style={styles.printPreviewTitle}>
+              {/* {printHtml.includes('KITCHEN ORDER TICKET') ? 'Kitchen Ticket' : 'Customer Receipt'} */}
+            </Text>
+            <TouchableOpacity onPress={closePrintPreview}>
+              <Ionicons name="close" size={24} color="#5d3a7e" />
+            </TouchableOpacity>
+          </View>
+
+          <WebView
+            originWhitelist={['*']}
+            source={{ html: printDocuments[currentPrintIndex]?.html || '' }}
+            style={styles.webview}
+          />
+
+          <View style={styles.printActions}>
+            <TouchableOpacity
+              style={[styles.printButton, isPrinting && styles.disabledButton]}
+              onPress={() => handlePrintAll()}
+              disabled={isPrinting}
+            >
+              {isPrinting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.printButtonText}>Print All</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelPrintButton}
+              onPress={closePrintPreview}
+            >
+              <Text style={styles.cancelPrintButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+
+
 
 
       <Modal
@@ -857,25 +999,43 @@ useEffect(() => {
       </Modal>
 
       {/* {totalItems > 0 &&  (
-        <View style={styles.cartIndicator}>
-          <Ionicons  name="cart" size={24} color="#fff" />
-          <Text style={styles.cartCount}>{totalItems}</Text>
-        </View>
-      )} */}
+          <View style={styles.cartIndicator}>
+            <Ionicons  name="cart" size={24} color="#fff" />
+            <Text style={styles.cartCount}>{totalItems}</Text>
+          </View>
+        )} */}
 
-<View style={styles.cartIconContainer}>
-  <TouchableOpacity 
-    onPress={() => navigation.navigate('Orders')}
-    style={styles.cartIconButton}
-  >
-    <Ionicons name="cart" size={24} color="#fff" />
-    {cartTotalItems > 0 && (
-      <View style={styles.cartBadge}>
-        <Text style={styles.cartBadgeText}>{cartTotalItems}</Text>
+      <View style={styles.logoutIconContainer}>
+        <TouchableOpacity
+          onPress={handleLogout}
+          style={styles.cartIconButton}
+        >
+          <Ionicons name="log-out" size={28} color="#fff" />
+
+        </TouchableOpacity>
       </View>
-    )}
-  </TouchableOpacity>
-</View>
+
+      <View style={styles.cartIconContainer}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Orders')}
+          style={styles.cartIconButton}
+        >
+          <Ionicons name="cart" size={28} color="#fff" />
+          {cartTotalItems > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartCount}>{totalItems}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* <View style={styles.header}>
+      <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+        <Ionicons name="log-out" size={24} color="#fff" />
+      </TouchableOpacity>
+      <Text style={styles.title}>Menu</Text>
+    
+      </View> */}
 
     </SafeAreaView>
   );
@@ -897,6 +1057,7 @@ const styles = StyleSheet.create({
     color: '#8e44ad',
     fontSize: 16,
   },
+
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -932,16 +1093,20 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   header: {
-    padding: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
-    backgroundColor: '#8e44ad',
-    borderBottomLeftRadius: 15,
-    borderBottomRightRadius: 15,
+     paddingTop: 45,
+    paddingBottom: 20,
+    backgroundColor: '#7e4bcc',
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
   },
   title: {
-    fontSize: 22,
-    fontWeight: 'bold',
+     fontSize: 22,
+    fontFamily: 'Poppins-Bold',
     color: '#fff',
     textAlign: 'center',
   },
@@ -950,69 +1115,79 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     marginHorizontal: 20,
-    marginTop: 15,
-    borderRadius: 15,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#e0d7f0',
+    marginTop: 20,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    shadowColor: '#7e4bcc',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
   },
   searchIcon: {
-    marginRight: 10,
+     marginRight: 12,
+    color: '#9e9bc7'
   },
   searchInput: {
-    flex: 1,
-    height: 40,
+     flex: 1,
     fontSize: 16,
-    color: '#5d3a7e',
+    color: '#5a4a9c',
+    fontFamily: 'Poppins-Regular',
   },
   categoryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginHorizontal: 20,
-    marginTop: 15,
-    marginBottom: 10,
+    marginTop: 20,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#5d3a7e',
-    marginBottom: 10,
+    fontFamily: 'Poppins-Bold',
+    color: '#5a4a9c',
   },
   menuTitle: {
-    marginHorizontal: 20,
+   marginHorizontal: 20,
     marginTop: 15,
-    marginBottom: 5,
+    marginBottom: 8,
+    fontSize: 20,
+    fontFamily: 'Poppins-Bold',
+    color: '#5a4a9c',
   },
   viewAll: {
-    color: '#8e44ad',
-    fontWeight: '500',
+    color: '#7e4bcc',
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 14,
   },
   categoriesContainer: {
     paddingHorizontal: 15,
-    paddingBottom: 5,
+    paddingBottom: 8,
   },
   categoryItem: {
-    backgroundColor: '#f0e6ff',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    marginHorizontal: 5,
+    backgroundColor: '#f0ebff',
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    marginHorizontal: 6,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e0d7f0',
-    height: 35,
+    height: 42,
+    shadowColor: '#7e4bcc',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   selectedCategory: {
-    backgroundColor: '#8e44ad',
-    borderColor: '#8e44ad',
+    backgroundColor: '#7e4bcc',
+    shadowColor: '#5a4a9c',
   },
   categoryText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#5d3a7e',
+    fontFamily: 'Poppins-Medium',
+    color: '#5a4a9c',
   },
   selectedCategoryText: {
     color: '#fff',
@@ -1022,76 +1197,80 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   gridItem: {
-    width: ITEM_WIDTH,
+     width: ITEM_WIDTH,
     backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 15,
-    margin: 5,
+    borderRadius: 18,
+    padding: 16,
+    margin: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e0d7f0',
-    shadowColor: '#8e44ad',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: '#7e4bcc',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 5,
   },
   itemImagePlaceholder: {
-    width: ITEM_WIDTH - 30,
-    height: ITEM_WIDTH - 30,
-    backgroundColor: '#f0e6ff',
-    borderRadius: 10,
+    width: ITEM_WIDTH - 32,
+    height: ITEM_WIDTH - 32,
+    backgroundColor: '#f8f5ff',
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   itemImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 10,
+    borderRadius: 14,
   },
   itemName: {
-    fontWeight: '600',
-    fontSize: 16,
+    fontWeight: 'Bold',
+    fontSize: 19,
     textAlign: 'center',
-    marginBottom: 5,
-    color: '#5d3a7e',
+    marginBottom: 6,
+    color: '#5a4a9c',
   },
   itemPrice: {
-    fontWeight: 'bold',
+    fontFamily: 'Poppins-Bold',
     fontSize: 16,
-    color: '#8e44ad',
-    marginBottom: 10,
+    color: '#7e4bcc',
+    marginBottom: 12,
   },
   addButton: {
-    backgroundColor: '#8e44ad',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 15,
+    backgroundColor: '#7e4bcc',
+    borderRadius: 12,
+    paddingVertical: 10,
     width: '100%',
     alignItems: 'center',
+    shadowColor: '#7e4bcc',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   addButtonText: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
   },
   emptyContainer: {
-    flex: 1,
+     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
   },
   emptyText: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#8e44ad',
-    marginTop: 15,
+    fontFamily: 'Poppins-Bold',
+    color: '#7e4bcc',
+    marginTop: 20,
   },
   emptySubtext: {
     fontSize: 16,
-    color: '#a78bc9',
-    marginTop: 5,
+    color: '#9e9bc7',
+    marginTop: 8,
     textAlign: 'center',
+    fontFamily: 'Poppins-Regular',
   },
   orderFormContainer: {
     backgroundColor: '#fff',
@@ -1296,7 +1475,7 @@ const styles = StyleSheet.create({
   cartIndicator: {
     position: 'absolute',
     top: 50,
-    right: 20,
+    right: 10,
     flexDirection: 'row',
     backgroundColor: '#8e44ad',
     padding: 8,
@@ -1376,30 +1555,105 @@ const styles = StyleSheet.create({
 
 
   cartIconContainer: {
-  position: 'absolute',
-  top: 10,
-  right: 20,
-  zIndex: 100,
-},
-cartIconButton: {
-  position: 'relative',
-},
-cartBadge: {
-  position: 'absolute',
-  right: -5,
-  top: -5,
-  backgroundColor: 'red',
-  borderRadius: 10,
-  width: 20,
-  height: 20,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-cartBadgeText: {
-  color: 'white',
-  fontSize: 12,
-  fontWeight: 'bold',
-},
+    position: 'absolute',
+    top: 22,
 
+    right: 20,
+    zIndex: 100,
+  },
+  logoutIconContainer: {
+    position: 'absolute',
+    top: 22,
+    transform: [{ scaleX: -1 }],
+    left: 20,
+    zIndex: 100,
+  },
+  cartIconButton: {
+    position: 'relative',
+  },
+  // cartBadge: {
+  //   position: 'absolute',
+  //   right: -5,
+  //   top: -5,
+  //   backgroundColor: 'red',
+  //   borderRadius: 10,
+  //   width: 20,
+  //   height: 20,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  // },
+  cartBadgeText: {
+    color: 'white',
+    fontSize: 8,
+    fontWeight: 'ultralight',
+  },
+  //prinnting stylesss
+  printPreviewContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  printPreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0d7f0',
+  },
+  printPreviewTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#5d3a7e',
+  },
+  pdfContainer: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    marginTop: 10,
+    backgroundColor: '#f8f8f8',
+  },
+  pdf: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#fff',
+  },
+  printActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#e0d7f0',
+  },
+  printButton: {
+    backgroundColor: '#8e44ad',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  disabledButton: {
+    backgroundColor: '#b19cd9',
+  },
+  printButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  cancelPrintButton: {
+    borderWidth: 1,
+    borderColor: '#8e44ad',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    alignItems: 'center',
+    flex: 1,
+  },
+  cancelPrintButtonText: {
+    color: '#8e44ad',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
 
 });

@@ -1,6 +1,7 @@
   import axios from 'axios';
   import AsyncStorage from '@react-native-async-storage/async-storage';
   import { BASE_URL, ENDPOINTS } from './endpoints';
+import { convertJsonToHtml } from '../utils/convertJsonToHtml';
 
 
 
@@ -341,6 +342,10 @@ export { api };
       }
     },
     
+
+
+    
+
     getCategories: async () => {
       try {
         const response = await api.get(ENDPOINTS.CATEGORIES);
@@ -379,19 +384,63 @@ export { api };
       }
     },
     
-    printOrderBill: async (orderId, actionType) => {
-    try {
-      const response = await api.get(ENDPOINTS.PRINT_BILL, { 
-        params: { 
-          order_id: orderId, 
-          action: actionType.toLowerCase() 
-        }
-      });
-      return response.data;
-    } catch (error) {
-      return handleApiError(error);
+  //   printOrderBill: async (orderId, actionType) => {
+  //   try {
+  //     const response = await api.get(ENDPOINTS.PRINT_BILL, { 
+  //       params: { 
+  //         order_id: orderId, 
+  //         action: actionType.toLowerCase() 
+  //       }
+  //     });
+  //     return response.data;
+  //   } catch (error) {
+  //     return handleApiError(error);
+  //   }
+  // },
+
+//   printOrderBill: async (orderId, actionType) => {
+//     try {
+
+
+//      const response = await api.get('/orders/bill', {
+//   params: {
+//     order_id: orderId,
+//     action: actionType.toLowerCase(),
+//   },
+// });
+//       return response.data;
+//     } catch (error) {
+//       throw new Error(error.response?.data?.message || 'Failed to generate print template');
+//     }
+//   },
+
+// In api.js
+// In api.js
+printOrderBill: async (orderId, actionType) => {
+  try {
+    const response = await api.get('/orders/bill', {
+      params: { order_id: orderId, action: actionType.toLowerCase() }
+    });
+
+    // Handle array response (multiple printer documents)
+    if (Array.isArray(response.data)) {
+      return response.data.map(doc => ({
+        ...doc,
+        html: convertJsonToHtml(doc.content)
+      }));
     }
-  },
+    
+    // Handle single document response
+    return [{
+      ...response.data,
+      html: convertJsonToHtml(response.data.content)
+    }];
+  } catch (error) {
+    console.error('Print API error:', error);
+    throw new Error(error.response?.data?.message || 'Failed to generate print template');
+  }
+},
+
     getOrder: async (id) => {
       try {
         const response = await api.get(ENDPOINTS.ORDER_DETAIL(id));

@@ -12,7 +12,8 @@ import {
   Easing,
   ActivityIndicator,
   Dimensions,
-  SafeAreaView
+  SafeAreaView,
+  Image
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
@@ -128,7 +129,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
 <LinearGradient
-  colors={['#0f2027', '#203a43', '#2c5364']}
+  colors={['#6e3879ff', '#4e2c58ff', '#651568ff']}
   style={styles.container}
   start={{ x: 0.5, y: 0 }}
   end={{ x: 0.5, y: 1 }}
@@ -148,14 +149,20 @@ export default function LoginScreen({ navigation }) {
             }
           ]}>
             <LinearGradient
-              colors={['#ffffff', '#f8f9fa']}
+              colors={['#f11cf1ff', '#f8f9fa']}
               style={styles.logoCircle}
               start={{ x: 0.2, y: 0.2 }}
               end={{ x: 1, y: 1 }}
             >
-              <Feather name="coffee" size={48} color="#6d4c41" />
+              {/* <Feather name="coffee" size={48} color="#6d4c41" /> */}
+               <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+    <Image
+      source={require('../assets/favicon.png')}
+      style={{ width: 120, height: 120,borderRadius:50, resizeMode: 'contain' }}
+    />
+  </View>
             </LinearGradient>
-            <Text style={styles.logoText}>Rithu Cafe</Text>
+            <Text style={styles.logoText}>NassCafe</Text>
             <Text style={styles.tagline}>Artisan Coffee & Delights</Text>
           </Animated.View>
 
@@ -251,13 +258,13 @@ export default function LoginScreen({ navigation }) {
               </TouchableOpacity>
             </Animated.View>
 
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={styles.forgotButton}
               disabled={isLoading}
             >
               <Text style={styles.forgotText}>Forgot Password?</Text>
             </TouchableOpacity>
-            
+             */}
             
           </Animated.View>
         </KeyboardAvoidingView>

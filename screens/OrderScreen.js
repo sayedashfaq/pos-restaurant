@@ -19,13 +19,24 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OrderAPI } from '../api/api';
 
+
+import * as Print from 'expo-print';
+import { WebView } from 'react-native-webview';
+import { convertJsonToHtml } from '../utils/htmlUtils';
+
 const paymentTypes = ['Cash', 'Card', 'Credit'];
 const orderStatuses = ['Active', 'Settled', 'Cancelled'];
 
 export default function OrderScreen() {
+  
+  const [printDocuments, setPrintDocuments] = useState([]);
+  const [currentPrintIndex, setCurrentPrintIndex] = useState(0);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [printActionType, setPrintActionType] = useState('');
   const route = useRoute();
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState('All'); 
+  const [activeTab, setActiveTab] = useState('All');
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
@@ -205,32 +216,73 @@ export default function OrderScreen() {
       setShowPaymentModal(false);
       setCashAmount('');
       Alert.alert('Payment Confirmed', 'Order has been settled successfully');
-      fetchOrders(); 
+      fetchOrders();
     } catch (error) {
       Alert.alert('Error', `Failed to settle orders: ${error.message || error}`);
       console.error(error);
     }
   };
-const printKOT = async (orderId) => {
+
+const printDocumentsSequentially = async (docs) => {
+  setIsPrinting(true);
   try {
-    await OrderAPI.printOrderBill(orderId, 'kot');
-    Alert.alert('Print KOT', 'KOT printed successfully');
+    for (let i = 0; i < docs.length; i++) {
+      setCurrentPrintIndex(i);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      await Print.printAsync({
+        html: docs[i].html,
+        orientation: Print.Orientation.portrait,
+        paperSize: { width: 210, height: 297 }
+      });
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    return true;
   } catch (error) {
-    Alert.alert('Error', `Failed to print KOT: ${error.message || error}`);
-    console.error(error);
+    console.error('Printing error:', error);
+    throw new Error(`Failed to print: ${error.message}`);
+  } finally {
+    setIsPrinting(false);
   }
 };
+
+
+const printKOT = async (orderId) => {
+  try {
+    setPrintActionType('kot');
+    const docs = await OrderAPI.printOrderBill(orderId, 'kot');
+    setPrintDocuments(docs);
+    setShowPrintPreview(true);
+  } catch (error) {
+    Alert.alert('Error', error.message || 'Failed to print KOT');
+  }
+};
+
 
 const printBill = async (orderId) => {
   try {
-    await OrderAPI.printOrderBill(orderId, 'bill'); 
-    Alert.alert('Print Bill', 'Bill printed successfully');
+    setPrintActionType('bill');
+    const docs = await OrderAPI.printOrderBill(orderId, 'kot');
+    setPrintDocuments(docs);
+    setShowPrintPreview(true);
   } catch (error) {
-    Alert.alert('Error', `Failed to print bill: ${error.message || error}`);
-    console.error(error);
+    Alert.alert('Error', error.message || 'Failed to print bill');
   }
 };
 
+const handlePrintAll = async () => {
+  try {
+    const success = await printDocumentsSequentially(printDocuments);
+    if (success) {
+      Alert.alert('Success', 'Documents sent to printer');
+    }
+  } catch (error) {
+    Alert.alert('Print Error', error.message);
+  } finally {
+    setShowPrintPreview(false);
+  }
+};
   const settleSingleOrder = (orderId) => {
     setSelectedOrders([orderId]);
     setShowPaymentModal(true);
@@ -356,7 +408,7 @@ const printBill = async (orderId) => {
         colors={['#4a6572', '#344955']}
         style={styles.header}
       >
-        <Text style={styles.headerTitle}>Welcome User</Text>
+        {/* <Text style={styles.headerTitle}>Welcome User</Text> */}
         <Text style={styles.headerSubtitle}>Orders</Text>
 
         <View style={styles.tabsContainer}>
@@ -438,6 +490,53 @@ const printBill = async (orderId) => {
           </Text>
         </View>
       )}
+
+
+<Modal
+  visible={showPrintPreview}
+  transparent={false}
+  animationType="slide"
+>
+  <SafeAreaView style={styles.printPreviewContainer}>
+    <View style={styles.printPreviewHeader}>
+      <Text style={styles.printPreviewTitle}>
+        {printActionType === 'kot' ? 'Kitchen Order Ticket' : 'Bill Preview'}
+      </Text>
+      <TouchableOpacity onPress={() => setShowPrintPreview(false)}>
+        <Ionicons name="close" size={24} color="#5d3a7e" />
+      </TouchableOpacity>
+    </View>
+
+    <WebView
+      originWhitelist={['*']}
+      source={{ html: printDocuments[currentPrintIndex]?.html || '' }}
+      style={styles.webview}
+    />
+
+    <View style={styles.printActions}>
+      <TouchableOpacity
+        style={[styles.printButton, isPrinting && styles.disabledButton]}
+        onPress={handlePrintAll}
+        disabled={isPrinting}
+      >
+        {isPrinting ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text style={styles.printButtonText}>Print</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.cancelPrintButton}
+        onPress={() => setShowPrintPreview(false)}
+      >
+        <Text style={styles.cancelPrintButtonText}>Close</Text>
+      </TouchableOpacity>
+    </View>
+  </SafeAreaView>
+</Modal>
+
+
 
       <Modal
         visible={showPaymentModal}
@@ -886,4 +985,67 @@ const styles = StyleSheet.create({
     minWidth: 40,
     textAlign: 'right',
   },
+
+
+
+  printPreviewContainer: {
+  flex: 1,
+  backgroundColor: '#fff',
+},
+printPreviewHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: 15,
+  borderBottomWidth: 1,
+  borderBottomColor: '#e0d7f0',
+},
+printPreviewTitle: {
+  fontSize: 20,
+  fontWeight: 'bold',
+  color: '#5d3a7e',
+},
+webview: {
+  flex: 1,
+},
+printActions: {
+  flexDirection: 'row',
+  justifyContent: 'space-around',
+  padding: 15,
+  borderTopWidth: 1,
+  borderTopColor: '#e0d7f0',
+},
+printButton: {
+  backgroundColor: '#8e44ad',
+  borderRadius: 8,
+  paddingVertical: 12,
+  paddingHorizontal: 25,
+  alignItems: 'center',
+  flex: 1,
+  marginRight: 10,
+},
+disabledButton: {
+  backgroundColor: '#b19cd9',
+},
+printButtonText: {
+  color: '#fff',
+  fontWeight: 'bold',
+  fontSize: 16,
+},
+cancelPrintButton: {
+  borderWidth: 1,
+  borderColor: '#8e44ad',
+  borderRadius: 8,
+  paddingVertical: 12,
+  paddingHorizontal: 25,
+  alignItems: 'center',
+  flex: 1,
+},
+cancelPrintButtonText: {
+  color: '#8e44ad',
+  fontWeight: 'bold',
+  fontSize: 16,
+},
+
+
 });
