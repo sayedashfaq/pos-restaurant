@@ -25,7 +25,7 @@ const orderStatuses = ['Active', 'Settled', 'Cancelled'];
 export default function OrderScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState('All'); // Changed to 'All'
+  const [activeTab, setActiveTab] = useState('All'); 
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
@@ -205,32 +205,31 @@ export default function OrderScreen() {
       setShowPaymentModal(false);
       setCashAmount('');
       Alert.alert('Payment Confirmed', 'Order has been settled successfully');
-      fetchOrders(); // Refresh orders after settlement
+      fetchOrders(); 
     } catch (error) {
       Alert.alert('Error', `Failed to settle orders: ${error.message || error}`);
       console.error(error);
     }
   };
+const printKOT = async (orderId) => {
+  try {
+    await OrderAPI.printOrderBill(orderId, 'kot');
+    Alert.alert('Print KOT', 'KOT printed successfully');
+  } catch (error) {
+    Alert.alert('Error', `Failed to print KOT: ${error.message || error}`);
+    console.error(error);
+  }
+};
 
-  const printKOT = async (orderId) => {
-    try {
-      await OrderAPI.generateKOT(orderId);
-      Alert.alert('Print KOT', 'KOT printed successfully');
-    } catch (error) {
-      Alert.alert('Error', `Failed to print KOT: ${error.message || error}`);
-      console.error(error);
-    }
-  };
-
-  const printBill = async (orderId) => {
-    try {
-      await OrderAPI.generateBill(orderId);
-      Alert.alert('Print Bill', 'Bill printed successfully');
-    } catch (error) {
-      Alert.alert('Error', `Failed to print bill: ${error.message || error}`);
-      console.error(error);
-    }
-  };
+const printBill = async (orderId) => {
+  try {
+    await OrderAPI.printOrderBill(orderId, 'bill'); 
+    Alert.alert('Print Bill', 'Bill printed successfully');
+  } catch (error) {
+    Alert.alert('Error', `Failed to print bill: ${error.message || error}`);
+    console.error(error);
+  }
+};
 
   const settleSingleOrder = (orderId) => {
     setSelectedOrders([orderId]);
@@ -323,6 +322,7 @@ export default function OrderScreen() {
           <MaterialIcons name="receipt" size={20} color="#9C27B0" />
           <Text style={styles.actionText}>Print Bill</Text>
         </TouchableOpacity>
+
       </View>
 
       {item.status === 'Settled' && (

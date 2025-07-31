@@ -379,11 +379,13 @@ export { api };
       }
     },
     
-     printOrderBill: async (orderId, actionType) => {
+    printOrderBill: async (orderId, actionType) => {
     try {
       const response = await api.get(ENDPOINTS.PRINT_BILL, { 
-        order_id: orderId, 
-        action: actionType.toLowerCase() 
+        params: { 
+          order_id: orderId, 
+          action: actionType.toLowerCase() 
+        }
       });
       return response.data;
     } catch (error) {

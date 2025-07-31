@@ -254,15 +254,15 @@ useEffect(() => {
       };
 
       const response = await OrderAPI.createOrder(orderData);
-    console.log(response)
-      if (response?.id) {
-        
-        try {
-          await OrderAPI.printOrderBill(response.id, actionType);
-        } catch (printError) {
-          console.error('Printing failed:', printError);
-          Alert.alert('Printing Error', 'Order was created but printing failed');
-        }
+   
+     if (response?.id) {
+  try {
+    await OrderAPI.printOrderBill(response.id, actionType);
+  } catch (printError) {
+    console.error('Printing failed:', printError);
+    Alert.alert('Printing Error', 'Order was created but printing failed');
+  }
+
 
         Alert.alert('Success', 'Order placed successfully');
         setCart([]);
@@ -633,8 +633,8 @@ useEffect(() => {
             <View style={styles.phoneInputContainer}>
               <TextInput
                 style={[styles.addInput, styles.emailInput]}
-                placeholder="Country Code"
-                keyboardType="phone-pad"
+                placeholder="Email"
+              
                 value={newEmail}
                 onChangeText={setNewEmail}
                 placeholderTextColor="#888"

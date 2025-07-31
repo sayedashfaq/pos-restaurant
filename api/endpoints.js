@@ -1,4 +1,3 @@
-// endpoints.js
 export const BASE_URL = 'https://nassrestoapiuat.up.railway.app';
 
 export const ENDPOINTS = {
@@ -30,7 +29,7 @@ export const ENDPOINTS = {
 
   ORDERS: '/orders/',
   ORDER_DETAIL: (id) => `/orders/${id}/`,
-  KOT: '/orders/kot/',
+ KOT: (orderId) => `/orders/bill/`,
   PRINT_BILL: '/orders/bill/',
   PLATFORMS: '/core/settings/platforms/',
   PLATFORM_DETAIL: (id) => `/orders/settings/platforms/${id}/`,
