@@ -12,12 +12,14 @@ import {
   Easing,
   ActivityIndicator,
   Dimensions,
-  SafeAreaView,
-  Image
+  Image,
+  SafeAreaView
+  
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 import { AuthAPI } from '../api/api';
+
 
 const { width, height } = Dimensions.get('window');
 
@@ -67,17 +69,17 @@ export default function LoginScreen({ navigation }) {
       })
     ]).start();
   }, []);
+const handleLogin = async () => {
+  if (!email || !password) {
+    Alert.alert('Error', 'Please enter both email and password');
+    return;
+  }
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
-      return;
-    }
-
-    setIsLoading(true);
-    
-    try {
-      
+  setIsLoading(true);
+  
+  try {
+  
+    await new Promise(resolve => {
       Animated.sequence([
         Animated.timing(buttonScale, {
           toValue: 0.95,
@@ -91,37 +93,68 @@ export default function LoginScreen({ navigation }) {
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true
         })
-      ]).start();
+      ]).start(resolve);
+    });
 
-     
-      const response = await AuthAPI.login(email, password);
-      
-      if (response) {
-        navigation.replace('Menu');
-      } else {
-        throw new Error('No response received from server');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      let errorMessage = "Login failed. Please try again.";
-      
-      if (error.response?.data) {
-        const apiError = error.response.data;
-        errorMessage = 
-          apiError.non_field_errors?.[0] ||
-          apiError.detail ||
-          apiError.message ||
-          (typeof apiError === 'string' ? apiError : 'Invalid credentials');
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      Alert.alert('Login Error', errorMessage);
-      setPassword('');
-    } finally {
-      setIsLoading(false);
+   
+    const response = await AuthAPI.login(email, password);
+    
+    if (!response) {
+      throw new Error('No response received from server');
     }
-  };
+
+   
+    const accountInfo = await AuthAPI.getAccountInfo();
+    
+    if (!accountInfo?.role) {
+      throw new Error('Unable to determine user role');
+    }
+
+   
+    let targetScreen = 'Menu'; 
+    
+    switch (accountInfo.role.toLowerCase()) {
+      case 'waiter':
+        targetScreen = 'Menu';
+        break;
+      case 'admin':
+        targetScreen = 'Menu';
+        break;
+      case 'delivery':
+        targetScreen = 'Delivery';
+        break;
+      default:
+        Alert.alert(
+          'Access Denied',
+          'This app is currently only available for waiters and delivery staff'
+        );
+        await AuthAPI.logout();
+        return;
+    }
+
+    navigation.replace(targetScreen);
+    
+  } catch (error) {
+    console.error('Login error:', error);
+    let errorMessage = "Login failed. Please try again.";
+    
+    if (error.response?.data) {
+      const apiError = error.response.data;
+      errorMessage = 
+        apiError.non_field_errors?.[0] ||
+        apiError.detail ||
+        apiError.message ||
+        (typeof apiError === 'string' ? apiError : 'Invalid credentials');
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    Alert.alert('Login Error', errorMessage);
+    setPassword('');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleInputFocus = (inputName) => {
     setFocusedInput(inputName);

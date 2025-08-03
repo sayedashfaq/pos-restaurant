@@ -9,7 +9,7 @@ import { convertJsonToHtml } from '../utils/convertJsonToHtml';
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 100000,
   withCredentials: true, 
   headers: {
     'Content-Type': 'application/json',
@@ -105,19 +105,27 @@ export const AuthAPI = {
       handleApiError(error);
     }
   },
-
-  logout: async () => {
+ getAccountInfo: async () => {
     try {
-      await api.post('/accounts/logout/');
-
-      await AsyncStorage.removeItem('access_token');
-      await AsyncStorage.removeItem('refresh_token');
-
-      delete api.defaults.headers.common['Authorization'];
-
-      return true;
+      const response = await api.get('/accounts/account/');
+      return response.data;
     } catch (error) {
       handleApiError(error);
+      throw error; 
+    }
+  },
+
+
+
+   
+  logout: async () => {
+    try {
+      await AsyncStorage.removeItem('access_token');
+      await AsyncStorage.removeItem('refresh_token');
+      delete api.defaults.headers.common.Authorization;
+    } catch (error) {
+      console.error('Logout error', error);
+      throw error;
     }
   },
 
@@ -341,6 +349,17 @@ export { api };
         return handleApiError(error);
       }
     },
+    getMenuItemFiltered: async (categoryName) => {
+  try {
+    const endpoint = categoryName ? 
+      `/menus?category=${encodeURIComponent(categoryName)}` : 
+      '/menus';
+    const response = await api.get(endpoint);
+    return response.data;
+  } catch (error) {
+    return handleApiError(error);
+  }
+},
     
 
 
@@ -422,7 +441,7 @@ printOrderBill: async (orderId, actionType) => {
       params: { order_id: orderId, action: actionType.toLowerCase() }
     });
 
-    // Handle array response (multiple printer documents)
+  
     if (Array.isArray(response.data)) {
       return response.data.map(doc => ({
         ...doc,
@@ -430,7 +449,7 @@ printOrderBill: async (orderId, actionType) => {
       }));
     }
     
-    // Handle single document response
+  
     return [{
       ...response.data,
       html: convertJsonToHtml(response.data.content)
@@ -453,6 +472,14 @@ printOrderBill: async (orderId, actionType) => {
     updateOrder: async (id, updates) => {
       try {
         const response = await api.patch(ENDPOINTS.ORDER_DETAIL(id), updates);
+        return response.data;
+      } catch (error) {
+        return handleApiError(error);
+      }
+    },
+    deleteOrder: async (id) => {
+      try {
+        const response = await api.delete(ENDPOINTS.ORDER_DETAIL(id));
         return response.data;
       } catch (error) {
         return handleApiError(error);
@@ -502,7 +529,49 @@ printOrderBill: async (orderId, actionType) => {
       } catch (error) {
         return handleApiError(error);
       }
+    },
+
+
+
+  //    getDeliveryOrders: async () => {
+  //   try {
+  //     const response = await api.get('/accounts/delivery/orders/');
+  //     return response.data;
+  //   } catch (error) {
+  //     throw error.response?.data || error.message;
+  //   }
+  // },
+
+
+  getDeliveryOrders: async () => {
+  try {
+  
+    const testToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzODAxMDc5LCJpYXQiOjE3NTM3OTgzNzksImp0aSI6ImIzOTcyN2VlZmVmNzRiNzFiMGJmNzk3ODc5MTgxZmIzIiwidXNlcl9pZCI6Mn0.A9tSlpz-Xf76q3ieZ0UviXOXAXnTpiCRsaY9IuuxNT4"; // 👈 Replace with actual token
+
+    const response = await api.get('/accounts/delivery/orders/', {
+      headers: {
+        Authorization: `Bearer ${testToken}` // Manually attach token
+      }
+    });
+
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error.message;
+  }
+},
+
+
+  verifyQRCode: async (qrData) => {
+    try {
+      const response = await api.post('/orders/driver/qr/', { qr_data: qrData });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
     }
+  }
+
+
+
   };
 
   export const ReportAPI = {

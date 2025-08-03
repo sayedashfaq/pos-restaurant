@@ -14,10 +14,12 @@ export const ENDPOINTS = {
   DELIVERY: '/accounts/delivery/',
   DELIVERY_DETAIL: (id) => `/accounts/delivery/${id}/`,
 
+  USER_PROFILE: '/accounts/account/',
 
   MENUS: '/menus/',
   MENU_DETAIL: (id) => `/menus/${id}/`,
   CATEGORIES: '/menus/categories/',
+  FILTERCATEGORY: '/menus?category=<category_name>',
   CATEGORY_DETAIL: (id) => `/menus/categories/${id}/`,
 
 
@@ -29,9 +31,12 @@ export const ENDPOINTS = {
 
   ORDERS: '/orders/',
   ORDER_DETAIL: (id) => `/orders/${id}/`,
- KOT: (orderId) => `/orders/bill/`,
+  KOT: `/orders/bill/`,
   PRINT_BILL: '/orders/bill/',
   PLATFORMS: '/core/settings/platforms/',
   PLATFORM_DETAIL: (id) => `/orders/settings/platforms/${id}/`,
+
+
+
 
 };

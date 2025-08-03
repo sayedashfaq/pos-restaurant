@@ -18,17 +18,13 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OrderAPI } from '../api/api';
-
-
 import * as Print from 'expo-print';
 import { WebView } from 'react-native-webview';
-import { convertJsonToHtml } from '../utils/htmlUtils';
 
 const paymentTypes = ['Cash', 'Card', 'Credit'];
-const orderStatuses = ['Active', 'Settled', 'Cancelled'];
+const orderStatus = ['ordered', 'settled', 'cancelled'];
 
 export default function OrderScreen() {
-  
   const [printDocuments, setPrintDocuments] = useState([]);
   const [currentPrintIndex, setCurrentPrintIndex] = useState(0);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -46,19 +42,27 @@ export default function OrderScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchOrders = async () => {
-    try {
-      setRefreshing(true);
-      const params = {};
-      if (activeTab !== 'All') {
-        params.status = activeTab;
-      }
+  const statusMap = {
+  'All': null,
+  'Active': 'ordered',  
+  'Settled': 'settled',
+  'Cancelled': 'cancelled'
+};
+
+
+ const fetchOrders = async () => {
+  try {
+    setRefreshing(true);
+    const params = {};
+    const status = statusMap[activeTab];
+    
+    if (status) {
+      params.order_status = status;
+    }
 
       const data = await OrderAPI.getOrders(params);
 
-
       const formattedOrders = data.map(order => {
-
         let customerName = 'Unknown Customer';
         let customerPhone = '';
 
@@ -97,6 +101,7 @@ export default function OrderScreen() {
       });
 
       setOrders(formattedOrders);
+      
     } catch (error) {
       Alert.alert('Error', `Failed to fetch orders: ${error.message || error}`);
       console.error(error);
@@ -117,10 +122,9 @@ export default function OrderScreen() {
     }
   }, [route.params]);
 
-  const filteredOrders = orders.filter(order =>
-    activeTab === 'All' || order.status === activeTab
-  );
-
+  const filteredOrders = activeTab === 'All' 
+  ? orders 
+  : orders.filter(order => order.order_status === statusMap[activeTab]);
   const toggleOrderSelection = (id) => {
     setOrders(orders.map(order =>
       order.id === id ? { ...order, selected: !order.selected } : order
@@ -136,6 +140,7 @@ export default function OrderScreen() {
       return order;
     }));
   };
+
 
   const settleSelected = () => {
     if (selectedOrders.length === 0) {
@@ -162,12 +167,12 @@ export default function OrderScreen() {
           onPress: async () => {
             try {
               await Promise.all(selectedOrders.map(id =>
-                OrderAPI.updateOrder(id, { status: 'Cancelled' })
+                OrderAPI.updateOrder(id, { order_status: 'Cancelled' })
               ));
 
               setOrders(orders.map(order =>
                 selectedOrders.includes(order.id)
-                  ? { ...order, status: 'Cancelled', selected: false }
+                  ? { ...order, order_status: 'Cancelled', selected: false }
                   : order
               ));
 
@@ -200,7 +205,7 @@ export default function OrderScreen() {
     try {
       await Promise.all(selectedOrders.map(id =>
         OrderAPI.updateOrder(id, {
-          status: 'Settled',
+          order_status: 'Settled',
           payment_method: selectedPayment,
           cash_amount: selectedPayment === 'Cash' ? cashAmount : undefined
         })
@@ -208,7 +213,7 @@ export default function OrderScreen() {
 
       setOrders(orders.map(order =>
         selectedOrders.includes(order.id)
-          ? { ...order, status: 'Settled', selected: false }
+          ? { ...order, order_status: 'Settled', selected: false }
           : order
       ));
 
@@ -223,66 +228,65 @@ export default function OrderScreen() {
     }
   };
 
-const printDocumentsSequentially = async (docs) => {
-  setIsPrinting(true);
-  try {
-    for (let i = 0; i < docs.length; i++) {
-      setCurrentPrintIndex(i);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      await Print.printAsync({
-        html: docs[i].html,
-        orientation: Print.Orientation.portrait,
-        paperSize: { width: 210, height: 297 }
-      });
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
+  const printDocumentsSequentially = async (docs) => {
+    setIsPrinting(true);
+    try {
+      for (let i = 0; i < docs.length; i++) {
+        setCurrentPrintIndex(i);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        await Print.printAsync({
+          html: docs[i].html,
+          orientation: Print.Orientation.portrait,
+          paperSize: { width: 210, height: 297 }
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      return true;
+    } catch (error) {
+      console.error('Printing error:', error);
+      throw new Error(`Failed to print: ${error.message}`);
+    } finally {
+      setIsPrinting(false);
     }
-    return true;
-  } catch (error) {
-    console.error('Printing error:', error);
-    throw new Error(`Failed to print: ${error.message}`);
-  } finally {
-    setIsPrinting(false);
-  }
-};
+  };
 
-
-const printKOT = async (orderId) => {
-  try {
-    setPrintActionType('kot');
-    const docs = await OrderAPI.printOrderBill(orderId, 'kot');
-    setPrintDocuments(docs);
-    setShowPrintPreview(true);
-  } catch (error) {
-    Alert.alert('Error', error.message || 'Failed to print KOT');
-  }
-};
-
-
-const printBill = async (orderId) => {
-  try {
-    setPrintActionType('bill');
-    const docs = await OrderAPI.printOrderBill(orderId, 'kot');
-    setPrintDocuments(docs);
-    setShowPrintPreview(true);
-  } catch (error) {
-    Alert.alert('Error', error.message || 'Failed to print bill');
-  }
-};
-
-const handlePrintAll = async () => {
-  try {
-    const success = await printDocumentsSequentially(printDocuments);
-    if (success) {
-      Alert.alert('Success', 'Documents sent to printer');
+  const printKOT = async (orderId) => {
+    try {
+      setPrintActionType('kot');
+      const docs = await OrderAPI.printOrderBill(orderId, 'kot');
+      setPrintDocuments(docs);
+      setShowPrintPreview(true);
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to print KOT');
     }
-  } catch (error) {
-    Alert.alert('Print Error', error.message);
-  } finally {
-    setShowPrintPreview(false);
-  }
-};
+  };
+
+  const printBill = async (orderId) => {
+    try {
+      setPrintActionType('bill');
+      const docs = await OrderAPI.printOrderBill(orderId, 'bill');
+      setPrintDocuments(docs);
+      setShowPrintPreview(true);
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to print bill');
+    }
+  };
+
+  const handlePrintAll = async () => {
+    try {
+      const success = await printDocumentsSequentially(printDocuments);
+      if (success) {
+        Alert.alert('Success', 'Documents sent to printer');
+      }
+    } catch (error) {
+      Alert.alert('Print Error', error.message);
+    } finally {
+      setShowPrintPreview(false);
+    }
+  };
+
   const settleSingleOrder = (orderId) => {
     setSelectedOrders([orderId]);
     setShowPaymentModal(true);
@@ -312,11 +316,12 @@ const handlePrintAll = async () => {
     ]).start(callback);
   };
 
+  
   const renderOrderItem = ({ item }) => (
     <View style={[
       styles.orderCard,
-      item.status === 'Settled' && styles.settledCard,
-      item.status === 'Cancelled' && styles.cancelledCard
+      item === 'settled' && styles.settledCard,
+      item === 'cancelled' && styles.cancelledCard
     ]}>
       <View style={styles.orderHeader}>
         <View>
@@ -334,56 +339,90 @@ const handlePrintAll = async () => {
         </View>
       </View>
 
+
       <View style={styles.orderDetails}>
         <Text style={styles.itemsCount}>{item.items.length} items • QAR {item.total.toFixed(2)}</Text>
 
         {item.items.map((orderItem, index) => (
-          <View key={index} style={styles.orderItem}>
-            <Text style={styles.itemName}>{orderItem.name}</Text>
+          <View key={index} style={styles.orderItemContainer}>
+            <View style={styles.itemDetails}>
+              <Text style={styles.itemName}>{orderItem.name}</Text>
+            </View>
             <Text style={styles.itemPrice}>
-              {orderItem.qty} x {orderItem.price.toFixed(2)} = QAR {(orderItem.qty * orderItem.price).toFixed(2)}
+              {orderItem.qty} x QAR {orderItem.price.toFixed(2)}
+            </Text>
+            <Text style={styles.itemTotal}>
+              QAR {(orderItem.qty * orderItem.price).toFixed(2)}
             </Text>
           </View>
         ))}
       </View>
 
-
       <View style={styles.orderActions}>
-        {item.status === 'Active' && (
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => settleSingleOrder(item.id)}
-          >
-            <MaterialIcons name="payment" size={20} color="#4CAF50" />
-            <Text style={styles.actionText}>Settle</Text>
-          </TouchableOpacity>
+        {item.order_status === 'ordered'   && (
+          <>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.settleButton]}
+              onPress={() => settleSingleOrder(item.id)}
+            >
+              <MaterialIcons name="payment" size={20} color="#fff" />
+              <Text style={styles.actionText}>Settle</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.actionButton, styles.cancelButton]}
+              onPress={() => {
+                Alert.alert(
+                  'Cancel Order',
+                  'Are you sure you want to cancel this order?',
+                  [
+                    { text: 'No', style: 'cancel' },
+                    {
+                      text: 'Yes',
+                      onPress: async () => {
+                        try {
+                          await OrderAPI.deleteOrder(item.id, { order_status: 'Cancelled' });
+                          fetchOrders();
+                        } catch (error) {
+                          Alert.alert('Error', `Failed to cancel order: ${error.message || error}`);
+                        }
+                      }
+                    }
+                  ]
+                );
+              }}
+            >
+              <MaterialIcons name="cancel" size={20} color="#fff" />
+              <Text style={styles.actionText}>Cancel</Text>
+            </TouchableOpacity>
+          </>
         )}
 
         <TouchableOpacity
-          style={styles.actionButton}
+          style={[styles.actionButton, styles.printButton]}
           onPress={() => printKOT(item.id)}
         >
-          <MaterialIcons name="print" size={20} color="#2196F3" />
-          <Text style={styles.actionText}>Print KOT</Text>
+          <MaterialIcons name="print" size={20} color="#fff" />
+          <Text style={styles.actionText}>KOT</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.actionButton}
+          style={[styles.actionButton, styles.billButton]}
           onPress={() => printBill(item.id)}
         >
-          <MaterialIcons name="receipt" size={20} color="#9C27B0" />
-          <Text style={styles.actionText}>Print Bill</Text>
+          <MaterialIcons name="receipt" size={20} color="#fff" />
+          <Text style={styles.actionText}>Bill</Text>
         </TouchableOpacity>
-
       </View>
 
-      {item.status === 'Settled' && (
+      {item.order_status === 'settled' && (
         <View style={styles.statusBadge}>
           <Text style={styles.settledText}>SETTLED</Text>
         </View>
       )}
 
-      {item.status === 'Cancelled' && (
+      {item.order_status === 'cancelled' && (
+      
         <View style={[styles.statusBadge, styles.cancelledBadge]}>
           <Text style={styles.cancelledText}>CANCELLED</Text>
         </View>
@@ -396,7 +435,7 @@ const handlePrintAll = async () => {
         <Ionicons
           name={item.selected ? "checkbox" : "square-outline"}
           size={24}
-          color={item.selected ? "#FF9800" : "#ccc"}
+          color={item.selected ? "#5a67d8" : "#ccc"}
         />
       </TouchableOpacity>
     </View>
@@ -405,11 +444,13 @@ const handlePrintAll = async () => {
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['#4a6572', '#344955']}
+        colors={['#6c5ce7', '#4a4bff']}
         style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
       >
-        {/* <Text style={styles.headerTitle}>Welcome User</Text> */}
-        <Text style={styles.headerSubtitle}>Orders</Text>
+        <Text style={styles.headerTitle}>Order Management</Text>
+        <Text style={styles.headerSubtitle}>Track and manage all orders</Text>
 
         <View style={styles.tabsContainer}>
           {['All', 'Active', 'Settled', 'Cancelled'].map(tab => (
@@ -452,7 +493,7 @@ const handlePrintAll = async () => {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4a6572" />
+          <ActivityIndicator size="large" color="#6c5ce7" />
           <Text style={styles.loadingText}>Loading orders...</Text>
         </View>
       ) : filteredOrders.length > 0 ? (
@@ -466,14 +507,14 @@ const handlePrintAll = async () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={fetchOrders}
-              colors={['#FF9800']}
-              tintColor="#FF9800"
+              colors={['#6c5ce7']}
+              tintColor="#6c5ce7"
             />
           }
         />
       ) : (
         <View style={styles.emptyContainer}>
-          <Ionicons name="receipt-outline" size={80} color="#e0e0e0" />
+          <Ionicons name="receipt-outline" size={80} color="#d1d1e0" />
           <Text style={styles.emptyText}>No orders found</Text>
           <Text style={styles.emptySubtext}>
             {activeTab === 'All'
@@ -491,57 +532,56 @@ const handlePrintAll = async () => {
         </View>
       )}
 
-
-<Modal
-  visible={showPrintPreview}
-  transparent={false}
-  animationType="slide"
->
-  <SafeAreaView style={styles.printPreviewContainer}>
-    <View style={styles.printPreviewHeader}>
-      <Text style={styles.printPreviewTitle}>
-        {printActionType === 'kot' ? 'Kitchen Order Ticket' : 'Bill Preview'}
-      </Text>
-      <TouchableOpacity onPress={() => setShowPrintPreview(false)}>
-        <Ionicons name="close" size={24} color="#5d3a7e" />
-      </TouchableOpacity>
-    </View>
-
-    <WebView
-      originWhitelist={['*']}
-      source={{ html: printDocuments[currentPrintIndex]?.html || '' }}
-      style={styles.webview}
-    />
-
-    <View style={styles.printActions}>
-      <TouchableOpacity
-        style={[styles.printButton, isPrinting && styles.disabledButton]}
-        onPress={handlePrintAll}
-        disabled={isPrinting}
+      {/* Print Preview Modal */}
+      <Modal
+        visible={showPrintPreview}
+        transparent={false}
+        animationType="slide"
       >
-        {isPrinting ? (
-          <ActivityIndicator size="small" color="#fff" />
-        ) : (
-          <Text style={styles.printButtonText}>Print</Text>
-        )}
-      </TouchableOpacity>
+        <SafeAreaView style={styles.printPreviewContainer}>
+          <View style={styles.printPreviewHeader}>
+            <Text style={styles.printPreviewTitle}>
+              {printActionType === 'kot' ? 'Kitchen Order Ticket' : 'Bill Preview'}
+            </Text>
+            <TouchableOpacity onPress={() => setShowPrintPreview(false)}>
+              <Ionicons name="close" size={24} color="#5a67d8" />
+            </TouchableOpacity>
+          </View>
 
-      <TouchableOpacity
-        style={styles.cancelPrintButton}
-        onPress={() => setShowPrintPreview(false)}
-      >
-        <Text style={styles.cancelPrintButtonText}>Close</Text>
-      </TouchableOpacity>
-    </View>
-  </SafeAreaView>
-</Modal>
+          <WebView
+            originWhitelist={['*']}
+            source={{ html: printDocuments[currentPrintIndex]?.html || '' }}
+            style={styles.webview}
+          />
 
+          <View style={styles.printActions}>
+            <TouchableOpacity
+              style={[styles.printButton, isPrinting && styles.disabledButton]}
+              onPress={handlePrintAll}
+              disabled={isPrinting}
+            >
+              {isPrinting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.printButtonText}>Print</Text>
+              )}
+            </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.cancelPrintButton}
+              onPress={() => setShowPrintPreview(false)}
+            >
+              <Text style={styles.cancelPrintButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
 
+      {/* Payment Modal */}
       <Modal
         visible={showPaymentModal}
         transparent={true}
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setShowPaymentModal(false)}
       >
         <TouchableWithoutFeedback onPress={() => setShowPaymentModal(false)}>
@@ -550,6 +590,7 @@ const handlePrintAll = async () => {
 
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Settle Payment</Text>
+          <Text style={styles.modalSubtitle}>Select payment method and complete transaction</Text>
 
           <Text style={styles.sectionTitle}>Payment Type</Text>
           <View style={styles.paymentTypes}>
@@ -577,6 +618,7 @@ const handlePrintAll = async () => {
               <Text style={styles.inputLabel}>Cash Amount</Text>
               <TextInput
                 placeholder="Enter amount"
+                placeholderTextColor="#aaa"
                 value={cashAmount}
                 onChangeText={setCashAmount}
                 keyboardType="numeric"
@@ -586,7 +628,7 @@ const handlePrintAll = async () => {
           )}
 
           <View style={styles.totalContainer}>
-            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalLabel}>Total Amount</Text>
             <Text style={styles.totalAmount}>QAR {totalSelectedAmount.toFixed(2)}</Text>
           </View>
 
@@ -596,20 +638,22 @@ const handlePrintAll = async () => {
               onPress={confirmPayment}
             >
               <LinearGradient
-                colors={['#4CAF50', '#2E7D32']}
+                colors={['#6c5ce7', '#5a67d8']}
                 style={styles.gradientButton}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
               >
                 <Text style={styles.confirmButtonText}>Confirm Payment</Text>
-                <MaterialIcons name="payment" size={24} color="white" />
+                <MaterialIcons name="check" size={24} color="white" />
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
 
           <TouchableOpacity
-            style={styles.printButton}
-            onPress={() => printKOT(selectedOrders[0])}
+            style={styles.closeButton}
+            onPress={() => setShowPaymentModal(false)}
           >
-            <Text style={styles.printButtonText}>Print KOT</Text>
+            <Text style={styles.closeButtonText}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -617,11 +661,10 @@ const handlePrintAll = async () => {
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#f8f9ff',
   },
   header: {
     padding: 20,
@@ -631,26 +674,31 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',
+    fontFamily: 'Poppins-Bold',
   },
   headerSubtitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.8)',
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
     marginBottom: 15,
+    fontFamily: 'Poppins-Regular',
   },
   tabsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginTop: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 25,
+    padding: 5,
   },
   tabButton: {
     paddingVertical: 8,
@@ -658,14 +706,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   activeTab: {
-    backgroundColor: '#FF9800',
+    backgroundColor: 'white',
   },
   tabText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.9)',
     fontWeight: '600',
+    fontFamily: 'Poppins-Medium',
   },
   activeTabText: {
-    color: 'white',
+    color: '#6c5ce7',
     fontWeight: 'bold',
   },
   activeOrdersHeader: {
@@ -675,10 +724,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   actionLink: {
-    color: '#FF9800',
+    color: '#6c5ce7',
     fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
   },
   listContent: {
     padding: 15,
@@ -686,83 +741,108 @@ const styles = StyleSheet.create({
   },
   orderCard: {
     backgroundColor: '#fff',
-    borderRadius: 15,
+    borderRadius: 16,
     padding: 20,
     marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
+    shadowColor: '#6c5ce7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 3,
     borderLeftWidth: 4,
-    borderLeftColor: '#FF9800',
+    borderLeftColor: '#6c5ce7',
     position: 'relative',
+    overflow: 'hidden',
   },
   settledCard: {
-    borderLeftColor: '#4CAF50',
+    borderLeftColor: '#48bb78',
   },
   cancelledCard: {
-    borderLeftColor: '#F44336',
+    borderLeftColor: '#e53e3e',
   },
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   customerName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
     maxWidth: '70%',
+    fontFamily: 'Poppins-Bold',
   },
   customerPhone: {
     fontSize: 14,
     color: '#666',
-    marginTop: 2,
+    marginTop: 4,
+    fontFamily: 'Poppins-Regular',
   },
   orderMeta: {
     alignItems: 'flex-end',
   },
   orderTime: {
-    color: '#FF9800',
+    color: '#6c5ce7',
     fontWeight: '600',
     fontSize: 12,
+    fontFamily: 'Poppins-SemiBold',
   },
   orderTable: {
-    color: '#2196F3',
+    color: '#4a4bff',
     fontWeight: '600',
     fontSize: 12,
+    fontFamily: 'Poppins-SemiBold',
   },
   orderType: {
-    color: '#9C27B0',
+    color: '#9c7bff',
     fontWeight: '600',
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 4,
+    fontFamily: 'Poppins-SemiBold',
   },
   orderDetails: {
     borderTopWidth: 1,
     borderTopColor: '#eee',
-    paddingTop: 10,
-    marginTop: 5,
+    paddingTop: 12,
+    marginTop: 8,
   },
   itemsCount: {
     fontWeight: '600',
     color: '#555',
-    marginBottom: 8,
+    marginBottom: 10,
+    fontFamily: 'Poppins-SemiBold',
   },
-  orderItem: {
-    marginBottom: 5,
-    paddingVertical: 3,
+  orderItemContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  itemDetails: {
+    flex: 2,
   },
   itemName: {
     color: '#333',
     fontWeight: '500',
     fontSize: 14,
+    fontFamily: 'Poppins-Medium',
   },
   itemPrice: {
     color: '#777',
     fontSize: 13,
-    marginLeft: 10,
+    fontFamily: 'Poppins-Regular',
+    flex: 1,
+    textAlign: 'right',
+    paddingRight: 10,
+  },
+  itemTotal: {
+    color: '#333',
+    fontWeight: '600',
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+    width: 80,
+    textAlign: 'right',
   },
   orderActions: {
     flexDirection: 'row',
@@ -776,15 +856,32 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 5,
-    minWidth: '30%',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    minWidth: '23%',
     justifyContent: 'center',
-    marginVertical: 2,
+    // marginVertical: 2,
+    marginRight:2,
+  },
+  settleButton: {
+    backgroundColor: '#48bb78',
+  },
+  cancelButton: {
+    backgroundColor: '#e53e3e',
+  },
+  printButton: {
+    backgroundColor: '#4a4bff',
+  },
+  billButton: {
+    backgroundColor: '#9c7bff',
   },
   actionText: {
     marginLeft: 5,
-    color: '#555',
+    color: '#fff',
     fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
   },
   statusBadge: {
     position: 'absolute',
@@ -796,7 +893,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   settledText: {
-    color: '#4CAF50',
+    color: '#48bb78',
     fontWeight: 'bold',
     fontSize: 10,
   },
@@ -804,7 +901,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffebee',
   },
   cancelledText: {
-    color: '#F44336',
+    color: '#e53e3e',
     fontWeight: 'bold',
     fontSize: 10,
   },
@@ -822,29 +919,37 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#9e9e9e',
+    color: '#a0a0c0',
     marginTop: 15,
     textAlign: 'center',
+    fontFamily: 'Poppins-Bold',
   },
   emptySubtext: {
     fontSize: 16,
-    color: '#bdbdbd',
+    color: '#c0c0e0',
     marginTop: 5,
     textAlign: 'center',
+    fontFamily: 'Poppins-Regular',
   },
   selectedSummary: {
     position: 'absolute',
     bottom: 60,
     left: 0,
     right: 0,
-    backgroundColor: '#FF9800',
-    padding: 10,
+    backgroundColor: '#6c5ce7',
+    padding: 12,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   summaryText: {
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
+    fontFamily: 'Poppins-Bold',
   },
   modalOverlay: {
     flex: 1,
@@ -852,27 +957,40 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 20,
     padding: 25,
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    top: '10%',
+    left: '5%',
+    right: '5%',
     maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 5,
     color: '#333',
+    fontFamily: 'Poppins-Bold',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontFamily: 'Poppins-Regular',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 15,
     color: '#333',
+    fontFamily: 'Poppins-Bold',
   },
   paymentTypes: {
     flexDirection: 'row',
@@ -882,21 +1000,23 @@ const styles = StyleSheet.create({
   paymentButton: {
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 12,
     flex: 1,
     marginHorizontal: 5,
     alignItems: 'center',
+    backgroundColor: '#f8f9ff',
   },
   selectedPayment: {
-    backgroundColor: '#e3f2fd',
-    borderColor: '#2196F3',
+    backgroundColor: '#eef2ff',
+    borderColor: '#6c5ce7',
   },
   paymentText: {
     color: '#555',
+    fontFamily: 'Poppins-Medium',
   },
   selectedPaymentText: {
-    color: '#2196F3',
+    color: '#6c5ce7',
     fontWeight: 'bold',
   },
   cashInputContainer: {
@@ -906,14 +1026,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     color: '#555',
     fontWeight: '500',
+    fontFamily: 'Poppins-Medium',
   },
   cashInput: {
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 12,
+    padding: 15,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#f8f9ff',
+    fontFamily: 'Poppins-Regular',
   },
   totalContainer: {
     flexDirection: 'row',
@@ -927,11 +1049,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+    fontFamily: 'Poppins-Bold',
   },
   totalAmount: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#6c5ce7',
+    fontFamily: 'Poppins-Bold',
   },
   confirmButton: {
     borderRadius: 15,
@@ -949,18 +1073,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 18,
     marginRight: 10,
+    fontFamily: 'Poppins-Bold',
   },
-  printButton: {
+  closeButton: {
     marginTop: 15,
     padding: 15,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2196F3',
-    borderRadius: 10,
   },
-  printButtonText: {
-    color: '#2196F3',
+  closeButtonText: {
+    color: '#6c5ce7',
     fontWeight: 'bold',
+    fontSize: 16,
+    fontFamily: 'Poppins-SemiBold',
   },
   loadingContainer: {
     flex: 1,
@@ -969,83 +1093,74 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    color: '#4a6572',
+    color: '#6c5ce7',
     fontSize: 16,
+    fontFamily: 'Poppins-Regular',
   },
-
-  orderItemContainer: {
+  printPreviewContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  printPreviewHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 3,
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0d7f0',
   },
-  itemDetails: {
+  printPreviewTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#5a67d8',
+    fontFamily: 'Poppins-Bold',
+  },
+  webview: {
     flex: 1,
   },
-  itemQuantity: {
-    minWidth: 40,
-    textAlign: 'right',
+  printActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#e0d7f0',
   },
-
-
-
-  printPreviewContainer: {
-  flex: 1,
-  backgroundColor: '#fff',
-},
-printPreviewHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: 15,
-  borderBottomWidth: 1,
-  borderBottomColor: '#e0d7f0',
-},
-printPreviewTitle: {
-  fontSize: 20,
-  fontWeight: 'bold',
-  color: '#5d3a7e',
-},
-webview: {
-  flex: 1,
-},
-printActions: {
-  flexDirection: 'row',
-  justifyContent: 'space-around',
-  padding: 15,
-  borderTopWidth: 1,
-  borderTopColor: '#e0d7f0',
-},
-printButton: {
-  backgroundColor: '#8e44ad',
-  borderRadius: 8,
-  paddingVertical: 12,
-  paddingHorizontal: 25,
-  alignItems: 'center',
-  flex: 1,
-  marginRight: 10,
-},
-disabledButton: {
-  backgroundColor: '#b19cd9',
-},
-printButtonText: {
-  color: '#fff',
-  fontWeight: 'bold',
-  fontSize: 16,
-},
-cancelPrintButton: {
-  borderWidth: 1,
-  borderColor: '#8e44ad',
-  borderRadius: 8,
-  paddingVertical: 12,
-  paddingHorizontal: 25,
-  alignItems: 'center',
-  flex: 1,
-},
-cancelPrintButtonText: {
-  color: '#8e44ad',
-  fontWeight: 'bold',
-  fontSize: 16,
-},
-
-
+  printButton: {
+    backgroundColor: '#6c5ce7',
+    borderRadius: 10,
+    paddingVertical: 15,
+    paddingHorizontal: 25,
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+    shadowColor: '#6c5ce7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  disabledButton: {
+    backgroundColor: '#b19cd9',
+  },
+  printButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+  },
+  cancelPrintButton: {
+    borderWidth: 1,
+    borderColor: '#6c5ce7',
+    borderRadius: 10,
+    paddingVertical: 15,
+    paddingHorizontal: 25,
+    alignItems: 'center',
+    flex: 1,
+  },
+  cancelPrintButtonText: {
+    color: '#6c5ce7',
+    fontWeight: 'bold',
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+  },
 });

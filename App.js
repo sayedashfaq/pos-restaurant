@@ -7,23 +7,50 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from './screens/LoginScreen';
 import MenuScreen from './screens/MenuScreen';
 import OrderScreen from './screens/OrderScreen';
+import DeliveryBoyScreen from './screens/DeliveryBoyScreen';
 
-import { AuthAPI } from './api/api'; 
+import { AuthAPI } from './api/api';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [initialScreen, setInitialScreen] = useState('Login');
 
   useEffect(() => {
     const initAuth = async () => {
       try {
         await AuthAPI.setupAuthHeader();
         const token = await AsyncStorage.getItem('access_token');
-        setIsAuthenticated(!!token);
-      } catch (err) {
-        console.log('Auth setup error:', err);
+        
+        if (!token) {
+          setIsLoading(false);
+          return;
+        }
+
+        const user = await AuthAPI.getAccountInfo();
+        console.log(user)
+       
+        switch (user.role.toLowerCase()) {
+          case 'waiter':
+            case 'admin':
+
+            setInitialScreen('Menu');
+            break;
+          case 'delivery':
+            setInitialScreen('Delivery');
+            break;
+          default:
+            console.warn(`Unsupported role: ${user.role}. Redirecting to login.`);
+            await AuthAPI.logout();
+            setInitialScreen('Login');
+        }
+      } catch (error) {
+        console.log('Auth initialization error:', error);
+        if (error.response?.status === 401) {
+          await AuthAPI.logout();
+        }
+        setInitialScreen('Login');
       } finally {
         setIsLoading(false);
       }
@@ -41,11 +68,23 @@ export default function App() {
   }
 
   return (
+
+
+    // <NavigationContainer>
+    //   <Stack.Navigator>
+    //   <Stack.Screen name="Delivery" component={DeliveryBoyScreen} />
+      
+    //   </Stack.Navigator>
+    // </NavigationContainer>
     <NavigationContainer>
-      <Stack.Navigator initialRouteName={isAuthenticated ? 'Menu' : 'Login'}>
-        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Menu" component={MenuScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Orders" component={OrderScreen} options={{ headerShown: false }} />
+      <Stack.Navigator 
+        initialRouteName={initialScreen}
+        screenOptions={{ headerShown: false }}
+      >
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Menu" component={MenuScreen} />
+        <Stack.Screen name="Orders" component={OrderScreen} />
+        <Stack.Screen name="Delivery" component={DeliveryBoyScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

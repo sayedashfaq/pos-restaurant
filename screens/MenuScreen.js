@@ -80,6 +80,8 @@ export default function MenuScreen() {
 
   const [printActionType, setPrintActionType] = useState('');
 
+  const [filterItems, setFilterItems] = useState("All")
+
 
   const navigation = useNavigation();
 
@@ -88,47 +90,49 @@ export default function MenuScreen() {
     const total = cart.reduce((sum, item) => sum + item.quantity, 0);
     setCartTotalItems(total);
   }, [cart]);
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      
+     
+      const [
+        categoriesResponse,
+        menusResponse,
+        customersResponse,
+        tablesResponse,
+        deliveryBoysResponse,
+        countersResponse,
+        platformsResponse
+      ] = await Promise.all([
+        MenuAPI.getCategories(),
+        MenuAPI.getMenuItems(),
+        UserAPI.getCustomers(),
+        OrderAPI.getTables(),
+        UserAPI.getStaff('delivery'),
+        OrderAPI.getCounters(),
+        OrderAPI.getPlatforms()
+      ]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
+    
+      setCategories(categoriesResponse);
+      setMenuItems(menusResponse);
+      setCustomers(customersResponse);
+      setTables(tablesResponse);
+      setDeliveryBoys(deliveryBoysResponse);
+      setCounters(countersResponse);
+      setPlatforms(platformsResponse);
+      
+    } catch (err) {
+      setError(err.message || 'Failed to fetch data');
+      Alert.alert('Error', 'Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        const [
-          menusResponse,
-          categoriesResponse,
-          customersResponse,
-          tablesResponse,
-          deliveryBoysResponse,
-          countersResponse,
-          platformsResponse
-        ] = await Promise.all([
-          MenuAPI.getMenuItems(),
-          MenuAPI.getCategories(),
-          UserAPI.getCustomers(),
-          OrderAPI.getTables(),
-          UserAPI.getStaff('delivery'),
-          OrderAPI.getCounters(),
-          OrderAPI.getPlatforms()
-        ]);
-
-        setMenuItems(menusResponse);
-        setCategories([...categoriesResponse.map(cat => cat.name)]);
-        setCustomers(customersResponse);
-        setTables(tablesResponse);
-        setDeliveryBoys(deliveryBoysResponse);
-        setCounters(countersResponse);
-        setPlatforms(platformsResponse);
-        setLoading(false);
-      } catch (err) {
-        setError(err.message || 'Failed to fetch data');
-        setLoading(false);
-        Alert.alert('Error', 'Failed to load data. Please try again.');
-      }
-    };
-
-    fetchData();
-  }, []);
+  fetchData();
+}, []);
 
 
   useEffect(() => {
@@ -147,20 +151,36 @@ export default function MenuScreen() {
   //   item.name.toLowerCase().includes(searchText.toLowerCase())
   // );
 
+  const searchedItems = menuItems.filter(item =>
+    item.name.toLowerCase().includes(searchText.toLowerCase())
+  );
 
   const categoryMap = {};
   categories.forEach(cat => {
     categoryMap[cat.id] = cat.name;
   });
 
- const filteredItems = menuItems.filter(item => {
-  const categoryName = categoryMap[item.category_id]; // Use your actual category ID property name
-  
-  const categoryMatch = selectedCategory === 'All' || categoryName === selectedCategory;
-  const searchMatch = item.name.toLowerCase().includes(searchText.toLowerCase());
-  
-  return categoryMatch && searchMatch;
-});
+  const fetchFilteredItems = async (categoryName) => {
+    try {
+      setLoading(true);
+      const filteredResponse = await MenuAPI.getMenuItemFiltered(categoryName);
+      setMenuItems(filteredResponse);
+      setLoading(false);
+    } catch (error) {
+      setError(error.message || 'Failed to filter items');
+      setLoading(false);
+    }
+  };
+
+
+  const handleCategorySelect = (category) => {
+    setSelectedCategory(category);
+    if (category === 'all') {
+      fetchData();
+    } else {
+      fetchFilteredItems(category);
+    }
+  };
 
 
   const handleLogout = async () => {
@@ -337,7 +357,7 @@ export default function MenuScreen() {
       for (let i = 0; i < printDocuments.length; i++) {
         setCurrentPrintIndex(i);
 
-        
+
         await new Promise(resolve => setTimeout(resolve, 300));
 
         await Print.printAsync({
@@ -346,11 +366,11 @@ export default function MenuScreen() {
           paperSize: { width: 210, height: 297 }
         });
 
-       
+
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      
+
       setCart([]);
     } catch (error) {
       Alert.alert('Print Error', `Failed to print: ${error.message}`);
@@ -374,7 +394,7 @@ export default function MenuScreen() {
         {item.image ? (
           <Image source={{ uri: item.image }} style={styles.itemImage} />
         ) : (
-          <Ionicons name="fast-food" size={40} color="#8e44ad" />
+          <Ionicons name="fast-food" size={40} color="#7e4bcc" />
         )}
       </View> */}
       <Text style={styles.itemName} numberOfLines={1}>{item.name_ar}</Text>
@@ -403,14 +423,14 @@ export default function MenuScreen() {
           style={styles.cartQuantityButton}
           onPress={() => handleCartQuantityChange(item.id, -1)}
         >
-          <Ionicons name="remove" size={16} color="#8e44ad" />
+          <Ionicons name="remove" size={16} color="#7e4bcc" />
         </TouchableOpacity>
         <Text style={styles.cartQuantityText}>{item.quantity}</Text>
         <TouchableOpacity
           style={styles.cartQuantityButton}
           onPress={() => handleCartQuantityChange(item.id, 1)}
         >
-          <Ionicons name="add" size={16} color="#8e44ad" />
+          <Ionicons name="add" size={16} color="#7e4bcc" />
         </TouchableOpacity>
         <Text style={styles.cartItemPrice}>
           QAR {(item.price * item.quantity).toFixed(2)}
@@ -426,7 +446,7 @@ export default function MenuScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8e44ad" />
+        <ActivityIndicator size="large" color="#7e4bcc" />
         <Text style={styles.loadingText}>Loading menu...</Text>
       </View>
     );
@@ -446,13 +466,14 @@ export default function MenuScreen() {
       </View>
     );
   }
-
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.fixedHeader}>
-        <View style={styles.header}>
-          <Text style={styles.title}> NassCafe</Text>
-        </View>
+      {/* Main Content */}
+      <View style={styles.content}>
+        {/* Header */}
+        {/* <View style={styles.header}> */}
+        {/* </View> */}
+        {/* <Text style={styles.title}>NassCafe</Text> */}
 
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#888" style={styles.searchIcon} />
@@ -467,7 +488,7 @@ export default function MenuScreen() {
 
         <View style={styles.categoryHeader}>
           <Text style={styles.sectionTitle}>Categories</Text>
-          <Text style={styles.viewAll} onPress={() => setSelectedCategory('All')}>
+          <Text style={styles.viewAll} onPress={() => handleCategorySelect('All')}>
             View All
           </Text>
         </View>
@@ -477,230 +498,271 @@ export default function MenuScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesContainer}
         >
-          {categories.map((cat, index) => (
-            <TouchableOpacity
+          {/* <TouchableOpacity
+            onPress={() => handleCategorySelect('All')}
+            style={[
+              styles.categoryItem,
+              selectedCategory === 'All' && styles.selectedCategory
+            ]}
+          >
+            <Text style={[
+              styles.categoryText,
+              selectedCategory === 'All' && styles.selectedCategoryText
+            ]}>
+              All
+            </Text>
+          </TouchableOpacity> */}
 
-              key={`${cat}-${index}`}
-              onPress={() => setSelectedCategory(cat)}
+          {categories.map(category => (
+            <TouchableOpacity
+              key={category.id}
+              onPress={() => handleCategorySelect(category.name)}
               style={[
                 styles.categoryItem,
-                selectedCategory === cat && styles.selectedCategory
+                selectedCategory === category.name && styles.selectedCategory
               ]}
             >
               <Text style={[
                 styles.categoryText,
-                selectedCategory === cat && styles.selectedCategoryText
+                selectedCategory === category.name && styles.selectedCategoryText
               ]}>
-                {cat}
+                {category.name}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
-      </View>
 
-      <FlatList
-        data={filteredItems}
-        numColumns={2}
-        keyExtractor={item => item.id.toString()}
-        renderItem={renderMenuItem}
-        contentContainerStyle={styles.gridContainer}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="fast-food" size={60} color="#8e44ad" />
-
-            <Text style={styles.emptyText}>No items found</Text>
-            <Text style={styles.emptySubtext}>Try another category or search term</Text>
-          </View>
-        }
-        ListHeaderComponent={
-          <>
-            <Text style={[styles.sectionTitle, styles.menuTitle]}>Menus</Text>
-            {cart.length > 0 && (
-              <View style={styles.cartItemsContainer}>
-                <Text style={styles.sectionTitle}>Order Items ({totalItems})</Text>
-                <FlatList
-                  data={cart}
-                  renderItem={renderCartItem}
-                  keyExtractor={item => item.id.toString()}
-                  contentContainerStyle={styles.cartItemsList}
-                />
-              </View>
-            )}
-          </>
-        }
-        ListFooterComponent={
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.orderFormContainer}
-          >
-            <Text style={styles.sectionTitle}>Order Details</Text>
-
-            <View style={styles.sectionBox}>
-              <Text style={styles.subSectionTitle}>Order Type</Text>
-              <View style={styles.orderTypeContainer}>
-                {orderTypes.map(type => (
-                  <TouchableOpacity
-                    key={type}
-                    style={styles.orderTypeButton}
-                    onPress={() => setSelectedOrderType(type)}
-                  >
-                    <View style={[
-                      styles.radioOuter,
-                      selectedOrderType === type && styles.radioOuterSelected
-                    ]}>
-                      {selectedOrderType === type && <View style={styles.radioInner} />}
-                    </View>
-                    <Text style={styles.orderTypeText}>{type}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+        {/* Menu Items */}
+        <FlatList
+          data={searchedItems}
+          numColumns={2}
+          keyExtractor={item => item.id.toString()}
+          renderItem={renderMenuItem}
+          contentContainerStyle={styles.gridContainer}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="fast-food" size={60} color="#7e4bcc" />
+              <Text style={styles.emptyText}>No items found</Text>
+              <Text style={styles.emptySubtext}>Try another category or search term</Text>
             </View>
+          }
+          ListHeaderComponent={
+            <>
+              <Text style={[styles.sectionTitle, styles.menuTitle]}>Menus</Text>
+              {cart.length > 0 && (
+                <View style={styles.cartItemsContainer}>
+                  <Text style={styles.sectionTitle}>Order Items ({totalItems})</Text>
+                  <FlatList
+                    data={cart}
+                    renderItem={renderCartItem}
+                    keyExtractor={item => item.id.toString()}
+                    contentContainerStyle={styles.cartItemsList}
+                  />
+                </View>
+              )}
+            </>
+          }
+          ListFooterComponent={
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.orderFormContainer}
+              keyboardVerticalOffset={80}
+            >
+              <Text style={styles.sectionTitle}>Order Details</Text>
 
-
-            {selectedOrderType === 'Dine in' && (
               <View style={styles.sectionBox}>
-                <Text style={styles.subSectionTitle}>Select Table</Text>
-                <TouchableOpacity
-                  style={styles.pickerButton}
-                  onPress={() => setShowTablePicker(true)}
-                >
-                  <Text style={selectedTable ? styles.pickerText : styles.pickerPlaceholder}>
-                    {selectedTable?.name || 'Select a table...'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#888" />
-                </TouchableOpacity>
-
-                <Text style={styles.subSectionTitle}>Number of Guests</Text>
-                <TextInput
-                  style={styles.feeInput}
-                  keyboardType="numeric"
-                  value={numberOfGuests}
-                  onChangeText={setNumberOfGuests}
-                  placeholder="1"
-                />
+                <Text style={styles.subSectionTitle}>Order Type</Text>
+                <View style={styles.orderTypeContainer}>
+                  {orderTypes.map(type => (
+                    <TouchableOpacity
+                      key={type}
+                      style={styles.orderTypeButton}
+                      onPress={() => setSelectedOrderType(type)}
+                    >
+                      <View style={[
+                        styles.radioOuter,
+                        selectedOrderType === type && styles.radioOuterSelected
+                      ]}>
+                        {selectedOrderType === type && <View style={styles.radioInner} />}
+                      </View>
+                      <Text style={styles.orderTypeText}>{type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            )}
 
-
-            {selectedOrderType === 'Delivery' && (
-              <View style={styles.sectionBox}>
-                <Text style={styles.subSectionTitle}>Select Delivery Boy</Text>
-                <TouchableOpacity
-                  style={styles.pickerButton}
-                  onPress={() => setShowDeliveryBoyPicker(true)}
-                >
-                  <Text style={selectedDeliveryBoy ? styles.pickerText : styles.pickerPlaceholder}>
-                    {selectedDeliveryBoy?.name || 'Select a delivery boy...'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#888" />
-                </TouchableOpacity>
-
-                <Text style={styles.subSectionTitle}>Delivery Fee</Text>
-                <TextInput
-                  style={styles.feeInput}
-                  keyboardType="numeric"
-                  value={deliveryFee}
-                  onChangeText={setDeliveryFee}
-                  placeholder="0.00"
-                />
-              </View>
-            )}
-
-
-            {selectedOrderType === 'Takeaway' && (
-              <View style={styles.sectionBox}>
-                <Text style={styles.subSectionTitle}>Select Counter</Text>
-                <TouchableOpacity
-                  style={styles.pickerButton}
-                  onPress={() => setShowCounterPicker(true)}
-                >
-                  <Text style={selectedCounter ? styles.pickerText : styles.pickerPlaceholder}>
-                    {selectedCounter?.name || 'Select a counter...'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#888" />
-                </TouchableOpacity>
-              </View>
-            )}
-
-
-            {selectedOrderType === 'Online Order' && (
-              <View style={styles.sectionBox}>
-                <Text style={styles.subSectionTitle}>Select Platform</Text>
-                <TouchableOpacity
-                  style={styles.pickerButton}
-                  onPress={() => setShowPlatformPicker(true)}
-                >
-                  <Text style={selectedPlatform ? styles.pickerText : styles.pickerPlaceholder}>
-                    {selectedPlatform?.name || 'Select a platform...'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#888" />
-                </TouchableOpacity>
-
-                <Text style={styles.subSectionTitle}>Delivery Fee</Text>
-                <TextInput
-                  style={styles.feeInput}
-                  keyboardType="numeric"
-                  value={deliveryFee}
-                  onChangeText={setDeliveryFee}
-                  placeholder="0.00"
-                />
-              </View>
-            )}
-
-
-            <View style={styles.sectionBox}>
-              <Text style={styles.subSectionTitle}>Select Customer</Text>
-              <TouchableOpacity
-                style={styles.pickerButton}
-                onPress={() => setShowCustomerPicker(true)}
-              >
-                {selectedCustomer ? (
-                  <Text style={styles.pickerText}>{selectedCustomer.full_name}</Text>
-                ) : (
-                  <Text style={styles.pickerPlaceholder}>Select a customer...</Text>
-                )}
-                <Ionicons name="chevron-down" size={20} color="#888" />
-              </TouchableOpacity>
-
-              {(selectedOrderType === 'Delivery' || selectedOrderType === 'Online Order') && (
-                <>
-                  <Text style={styles.subSectionTitle}>Delivery Address</Text>
+              {selectedOrderType === 'Dine in' && (
+                <View style={styles.sectionBox}>
+                  <Text style={styles.subSectionTitle}>Select Table</Text>
                   <TouchableOpacity
                     style={styles.pickerButton}
-                    onPress={() => setShowAddressPicker(true)}
+                    onPress={() => setShowTablePicker(true)}
                   >
-                    <Text style={selectedAddress ? styles.pickerText : styles.pickerPlaceholder}>
-                      {selectedAddress || 'Enter delivery address...'}
+                    <Text style={selectedTable ? styles.pickerText : styles.pickerPlaceholder}>
+                      {selectedTable?.name || 'Select a table...'}
                     </Text>
                     <Ionicons name="chevron-down" size={20} color="#888" />
                   </TouchableOpacity>
-                </>
+
+                  <Text style={styles.subSectionTitle}>Number of Guests</Text>
+                  <TextInput
+                    style={styles.feeInput}
+                    keyboardType="numeric"
+                    value={numberOfGuests}
+                    onChangeText={setNumberOfGuests}
+                    placeholder="1"
+                  />
+                </View>
               )}
-            </View>
 
-            <View style={styles.totalSection}>
-              <Text style={styles.totalLabel}>Total Payment</Text>
-              <Text style={styles.totalAmount}>QAR {totalAmount.toFixed(2)}</Text>
 
-              <View style={styles.actionButtons}>
+              {selectedOrderType === 'Delivery' && (
+                <View style={styles.sectionBox}>
+                  <Text style={styles.subSectionTitle}>Select Delivery Boy</Text>
+                  <TouchableOpacity
+                    style={styles.pickerButton}
+                    onPress={() => setShowDeliveryBoyPicker(true)}
+                  >
+                    <Text style={selectedDeliveryBoy ? styles.pickerText : styles.pickerPlaceholder}>
+                      {selectedDeliveryBoy?.name || 'Select a delivery boy...'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#888" />
+                  </TouchableOpacity>
+
+                  <Text style={styles.subSectionTitle}>Delivery Fee</Text>
+                  <TextInput
+                    style={styles.feeInput}
+                    keyboardType="numeric"
+                    value={deliveryFee}
+                    onChangeText={setDeliveryFee}
+                    placeholder="0.00"
+                  />
+                </View>
+              )}
+
+
+              {selectedOrderType === 'Takeaway' && (
+                <View style={styles.sectionBox}>
+                  <Text style={styles.subSectionTitle}>Select Counter</Text>
+                  <TouchableOpacity
+                    style={styles.pickerButton}
+                    onPress={() => setShowCounterPicker(true)}
+                  >
+                    <Text style={selectedCounter ? styles.pickerText : styles.pickerPlaceholder}>
+                      {selectedCounter?.name || 'Select a counter...'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#888" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+
+              {selectedOrderType === 'Online Order' && (
+                <View style={styles.sectionBox}>
+                  <Text style={styles.subSectionTitle}>Select Platform</Text>
+                  <TouchableOpacity
+                    style={styles.pickerButton}
+                    onPress={() => setShowPlatformPicker(true)}
+                  >
+                    <Text style={selectedPlatform ? styles.pickerText : styles.pickerPlaceholder}>
+                      {selectedPlatform?.name || 'Select a platform...'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#888" />
+                  </TouchableOpacity>
+
+                  <Text style={styles.subSectionTitle}>Delivery Fee</Text>
+                  <TextInput
+                    style={styles.feeInput}
+                    keyboardType="numeric"
+                    value={deliveryFee}
+                    onChangeText={setDeliveryFee}
+                    placeholder="0.00"
+                  />
+                </View>
+              )}
+
+
+              <View style={styles.sectionBox}>
+                <Text style={styles.subSectionTitle}>Select Customer</Text>
                 <TouchableOpacity
-                  style={styles.kotButton}
-                  onPress={() => handlePlaceOrder('KOT')}
+                  style={styles.pickerButton}
+                  onPress={() => setShowCustomerPicker(true)}
                 >
-                  <Text style={styles.kotButtonText}>KOT & Bill</Text>
+                  {selectedCustomer ? (
+                    <Text style={styles.pickerText}>{selectedCustomer.full_name}</Text>
+                  ) : (
+                    <Text style={styles.pickerPlaceholder}>Select a customer...</Text>
+                  )}
+                  <Ionicons name="chevron-down" size={20} color="#888" />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.billButton}
-                  onPress={() => handlePlaceOrder('BILL')}
-                >
-                  <Text style={styles.billButtonText}>Bill</Text>
-                </TouchableOpacity>
+                {(selectedOrderType === 'Delivery' || selectedOrderType === 'Online Order') && (
+                  <>
+                    <Text style={styles.subSectionTitle}>Delivery Address</Text>
+                    <TouchableOpacity
+                      style={styles.pickerButton}
+                      onPress={() => setShowAddressPicker(true)}
+                    >
+                      <Text style={selectedAddress ? styles.pickerText : styles.pickerPlaceholder}>
+                        {selectedAddress || 'Enter delivery address...'}
+                      </Text>
+                      <Ionicons name="chevron-down" size={20} color="#888" />
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
-            </View>
-          </KeyboardAvoidingView>
-        }
-      />
+
+              <View style={styles.totalSection}>
+                <Text style={styles.totalLabel}>Total Payment</Text>
+                <Text style={styles.totalAmount}>QAR {totalAmount.toFixed(2)}</Text>
+
+                <View style={styles.actionButtons}>
+                  <TouchableOpacity
+                    style={styles.kotButton}
+                    onPress={() => handlePlaceOrder('KOT')}
+                  >
+                    <Text style={styles.kotButtonText}>KOT & Bill</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.billButton}
+                    onPress={() => handlePlaceOrder('BILL')}
+                  >
+                    <Text style={styles.billButtonText}>Bill</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          }
+        />
+      </View>
+
+      {/* Footer Navigation */}
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={styles.footerButton}
+          onPress={() => navigation.navigate('Orders')}
+        >
+          <Ionicons name="list" size={24} color="#7e4bcc" />
+          <Text style={styles.footerButtonText}>Orders</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.footerButton}
+          onPress={() => navigation.navigate('Menu')}
+        >
+          <Ionicons name="fast-food" size={24} color="#7e4bcc" />
+          <Text style={styles.footerButtonText}>Menu</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.footerButton}
+          onPress={handleLogout}
+        >
+          <Ionicons name="log-out" size={24} color="#7e4bcc" />
+          <Text style={styles.footerButtonText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
 
 
       <Modal
@@ -1045,7 +1107,7 @@ export default function MenuScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f4ff',
+    backgroundColor: '#ffffffff',
   },
   loadingContainer: {
     flex: 1,
@@ -1054,7 +1116,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    color: '#8e44ad',
+    color: '#7e4bcc',
     fontSize: 16,
   },
 
@@ -1072,7 +1134,7 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     marginTop: 20,
-    backgroundColor: '#8e44ad',
+    backgroundColor: '#7e4bcc',
     padding: 10,
     borderRadius: 5,
   },
@@ -1080,12 +1142,46 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
   },
+  content: {
+    flex: 1,
+    marginBottom: 60,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0d7f0',
+    paddingVertical: 12,
+    paddingBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 100,
+  },
+  footerButton: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  footerButtonText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: 'Poppins-Medium',
+    color: '#7e4bcc',
+  },
   fixedHeader: {
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0d7f0',
     paddingBottom: 10,
-    shadowColor: '#8e44ad',
+    shadowColor: '#7e4bcc',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -1093,7 +1189,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   header: {
-     paddingTop: 45,
+    paddingTop: 45,
     paddingBottom: 20,
     backgroundColor: '#7e4bcc',
     borderBottomLeftRadius: 25,
@@ -1105,7 +1201,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   title: {
-     fontSize: 22,
+    fontSize: 22,
     fontFamily: 'Poppins-Bold',
     color: '#fff',
     textAlign: 'center',
@@ -1115,7 +1211,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     marginHorizontal: 20,
-    marginTop: 20,
+    marginTop: 30,
     borderRadius: 14,
     paddingHorizontal: 18,
     paddingVertical: 12,
@@ -1126,11 +1222,11 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   searchIcon: {
-     marginRight: 12,
+    marginRight: 12,
     color: '#9e9bc7'
   },
   searchInput: {
-     flex: 1,
+    flex: 1,
     fontSize: 16,
     color: '#5a4a9c',
     fontFamily: 'Poppins-Regular',
@@ -1140,8 +1236,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 12,
+    marginTop: 10,
+    marginBottom: 9,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1149,8 +1245,8 @@ const styles = StyleSheet.create({
     color: '#5a4a9c',
   },
   menuTitle: {
-   marginHorizontal: 20,
-    marginTop: 15,
+    marginHorizontal: 20,
+    marginTop: 5,
     marginBottom: 8,
     fontSize: 20,
     fontFamily: 'Poppins-Bold',
@@ -1195,9 +1291,10 @@ const styles = StyleSheet.create({
   gridContainer: {
     paddingHorizontal: 15,
     paddingBottom: 20,
+    marginTop: 10
   },
   gridItem: {
-     width: ITEM_WIDTH,
+    width: ITEM_WIDTH,
     backgroundColor: '#fff',
     borderRadius: 18,
     padding: 16,
@@ -1254,7 +1351,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   emptyContainer: {
-     flex: 1,
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
@@ -1282,7 +1379,7 @@ const styles = StyleSheet.create({
     borderColor: '#e0d7f0',
   },
   sectionBox: {
-    backgroundColor: '#f8f4ff',
+    backgroundColor: '#fcfcfcff',
     borderRadius: 15,
     padding: 15,
     marginBottom: 15,
@@ -1313,7 +1410,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#8e44ad',
+    borderColor: '#7e4bcc',
     marginRight: 10,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1325,7 +1422,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#8e44ad',
+    backgroundColor: '#7e4bcc',
   },
   orderTypeText: {
     fontSize: 16,
@@ -1376,7 +1473,7 @@ const styles = StyleSheet.create({
   totalAmount: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#8e44ad',
+    color: '#7e4bcc',
     marginBottom: 15,
   },
   actionButtons: {
@@ -1385,7 +1482,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   kotButton: {
-    backgroundColor: '#8e44ad',
+    backgroundColor: '#7e4bcc',
     borderRadius: 10,
     padding: 15,
     flex: 1,
@@ -1403,10 +1500,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#8e44ad',
+    borderColor: '#7e4bcc',
   },
   billButtonText: {
-    color: '#8e44ad',
+    color: '#7e4bcc',
     fontWeight: 'bold',
     fontSize: 16,
   },
@@ -1460,7 +1557,7 @@ const styles = StyleSheet.create({
     width: '50%',
   },
   addButtonModal: {
-    backgroundColor: '#8e44ad',
+    backgroundColor: '#7e4bcc',
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
@@ -1477,7 +1574,7 @@ const styles = StyleSheet.create({
     top: 50,
     right: 10,
     flexDirection: 'row',
-    backgroundColor: '#8e44ad',
+    backgroundColor: '#7e4bcc',
     padding: 8,
     paddingHorizontal: 15,
     borderRadius: 20,
@@ -1545,7 +1642,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#8e44ad',
+    color: '#7e4bcc',
   },
   noAddressText: {
     textAlign: 'center',
@@ -1625,7 +1722,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#e0d7f0',
   },
   printButton: {
-    backgroundColor: '#8e44ad',
+    backgroundColor: '#7e4bcc',
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 25,
@@ -1643,7 +1740,7 @@ const styles = StyleSheet.create({
   },
   cancelPrintButton: {
     borderWidth: 1,
-    borderColor: '#8e44ad',
+    borderColor: '#7e4bcc',
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 25,
@@ -1651,7 +1748,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cancelPrintButtonText: {
-    color: '#8e44ad',
+    color: '#7e4bcc',
     fontWeight: 'bold',
     fontSize: 16,
   },
