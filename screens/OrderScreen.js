@@ -36,7 +36,7 @@ export default function OrderScreen() {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
-  const [selectedPayment, setSelectedPayment] = useState('Cash');
+  const [selectedPayment, setSelectedPayment] = useState('cash');
   const [scaleValue] = useState(new Animated.Value(1));
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -167,12 +167,12 @@ export default function OrderScreen() {
           onPress: async () => {
             try {
               await Promise.all(selectedOrders.map(id =>
-                OrderAPI.updateOrder(id, { order_status: 'Cancelled' })
+                OrderAPI.updateOrder(id, { order_status: 'cancelled' })
               ));
 
               setOrders(orders.map(order =>
                 selectedOrders.includes(order.id)
-                  ? { ...order, order_status: 'Cancelled', selected: false }
+                  ? { ...order, order_status: 'cancelled', selected: false }
                   : order
               ));
 
@@ -183,18 +183,19 @@ export default function OrderScreen() {
               console.error(error);
             }
           }
+        
         }
       ]
     );
   };
 
   const confirmPayment = async () => {
-    if (selectedPayment === 'Cash' && !cashAmount) {
+    if (selectedPayment === 'cash' && !cashAmount) {
       Alert.alert('Enter Amount', 'Please enter the cash amount');
       return;
     }
 
-    if (selectedPayment === 'Cash') {
+    if (selectedPayment === 'cash') {
       const amount = parseFloat(cashAmount);
       if (isNaN(amount)) {
         Alert.alert('Invalid Amount', 'Please enter a valid number');
@@ -205,15 +206,15 @@ export default function OrderScreen() {
     try {
       await Promise.all(selectedOrders.map(id =>
         OrderAPI.updateOrder(id, {
-          order_status: 'Settled',
-          payment_method: selectedPayment,
-          cash_amount: selectedPayment === 'Cash' ? cashAmount : undefined
+          order_status: 'settled',
+          payment_amount: cashAmount,
+          payment_type: selectedPayment,
         })
       ));
 
       setOrders(orders.map(order =>
         selectedOrders.includes(order.id)
-          ? { ...order, order_status: 'Settled', selected: false }
+          ? { ...order, order_status: 'settled', selected: false }
           : order
       ));
 
@@ -252,27 +253,34 @@ export default function OrderScreen() {
     }
   };
 
-  const printKOT = async (orderId) => {
-    try {
-      setPrintActionType('kot');
-      const docs = await OrderAPI.printOrderBill(orderId, 'kot');
-      setPrintDocuments(docs);
-      setShowPrintPreview(true);
-    } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to print KOT');
-    }
-  };
 
-  const printBill = async (orderId) => {
-    try {
-      setPrintActionType('bill');
-      const docs = await OrderAPI.printOrderBill(orderId, 'bill');
-      setPrintDocuments(docs);
-      setShowPrintPreview(true);
-    } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to print bill');
-    }
-  };
+
+
+
+  const printKOT = async (orderId) => {
+  try {
+    if (!orderId) return Alert.alert('Error', 'Order ID is missing');
+    setPrintActionType('kot');
+    const docs = (await OrderAPI.printOrderBill(orderId, 'kot'))
+    setPrintDocuments(docs);
+    setShowPrintPreview(true);
+  } catch (error) {
+    Alert.alert('Error', error.message || 'Failed to print KOT');
+  }
+};
+
+const printBill = async (orderId) => {
+  try {
+    if (!orderId) return Alert.alert('Error', 'Order ID is missing');
+    setPrintActionType('bill');
+    const docs = await OrderAPI.printOrderBill(orderId, 'bill');
+    setPrintDocuments(docs);
+    setShowPrintPreview(true);
+  } catch (error) {
+    Alert.alert('Error', error.message || 'Failed to print bill');
+  }
+};
+
 
   const handlePrintAll = async () => {
     try {
@@ -381,7 +389,7 @@ export default function OrderScreen() {
                       text: 'Yes',
                       onPress: async () => {
                         try {
-                          await OrderAPI.deleteOrder(item.id, { order_status: 'Cancelled' });
+                          await OrderAPI.updateOrder(item.id, { order_status: 'cancelled' });
                           fetchOrders();
                         } catch (error) {
                           Alert.alert('Error', `Failed to cancel order: ${error.message || error}`);

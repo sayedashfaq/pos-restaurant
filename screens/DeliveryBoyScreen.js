@@ -115,31 +115,60 @@ const [showScanResult, setShowScanResult] = useState(false);
 
 
  const handleBarCodeScanned = async ({ data }) => {
-  if (!cameraReady) return;
-  
-  setIsScanning(false);
-  
-  try {
-   
-    const scannedText = data;
-    console.log("Scanned raw text:", scannedText);
-
-    setScanResult({
-      data: scannedText,
-      success: true
-    });
+    if (!cameraReady) return;
     
-    setShowScanResult(true); 
+    setIsScanning(false);
+    setCameraReady(false); // Reset camera ready state
     
-  } catch (error) {
-    setScanResult({
-      data: "Error reading QR code",
-      success: false,
-      error: error.message
-    });
-    setShowScanResult(true);
-  }
-};
+    try {
+      // Show loading state
+      setScanResult({
+        loading: true,
+        message: "Verifying QR code..."
+      });
+      setShowScanResult(true);
+      
+      // Verify with backend
+      const response = await OrderAPI.verifyQRCode(data);
+      
+      if (response.order) {
+        // Success - order verified
+        setScanResult({
+          success: true,
+          message: "Order verified successfully!",
+          order: response.order
+        });
+        
+        // Update active order
+        setActiveOrder(response.order);
+        
+        // Update orders list
+        setOrders(prevOrders => [...prevOrders, response.order]);
+        
+        // Update daily stats
+        setDailyStats(prev => ({
+          deliveries: prev.deliveries + 1,
+          collectedAmount: prev.collectedAmount + response.order.totalAmount
+        }));
+      } else {
+        // Verification failed
+        setScanResult({
+          success: false,
+          message: response.message || "QR verification failed",
+          error: true
+        });
+      }
+    } catch (error) {
+      // API error
+      setScanResult({
+        success: false,
+        message: error.message || "Failed to verify QR code",
+        error: true
+      });
+    } finally {
+      setShowScanResult(true);
+    }
+  };
 
 
   // const handleBarCodeScanned = async ({ data }) => {
@@ -297,31 +326,55 @@ const [showScanResult, setShowScanResult] = useState(false);
 
 
 //  Popup 
-const ScanResultPopup = () => (
-  <Modal
-    visible={showScanResult}
-    transparent
-    animationType="fade"
-    onRequestClose={() => setShowScanResult(false)}
-  >
-    <View style={styles.popupBackdrop}>
-      <View style={styles.popupCard}>
-        <Text style={styles.popupTitle}>QR Scan Result</Text>
-        
-        <View style={styles.dataBox}>
-          <Text style={styles.dataText}>{scanResult?.data}</Text>
-        </View>
+ const ScanResultPopup = () => (
+    <Modal
+      visible={showScanResult}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowScanResult(false)}
+    >
+      <View style={styles.popupBackdrop}>
+        <View style={styles.popupCard}>
+          <Text style={styles.popupTitle}>
+            {scanResult?.loading ? "Processing..." : 
+             scanResult?.success ? "Success" : "Error"}
+          </Text>
+          
+          <View style={[
+            styles.dataBox,
+            scanResult?.success && styles.successBox,
+            scanResult?.error && styles.errorBox
+          ]}>
+            {scanResult?.loading ? (
+              <ActivityIndicator size="large" color="#3498db" />
+            ) : (
+              <Text style={styles.dataText}>{scanResult?.message}</Text>
+            )}
+          </View>
 
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={() => setShowScanResult(false)}
-        >
-          <Text style={styles.buttonText}>Close</Text>
-        </TouchableOpacity>
+          {!scanResult?.loading && (
+            <TouchableOpacity
+              style={[
+                styles.closeButton,
+                scanResult?.success && styles.successButton,
+                scanResult?.error && styles.errorButton
+              ]}
+              onPress={() => {
+                setShowScanResult(false);
+                if (scanResult?.success) {
+                  setActiveOrder(scanResult.order);
+                }
+              }}
+            >
+              <Text style={styles.buttonText}>
+                {scanResult?.success ? "View Order" : "Close"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-    </View>
-  </Modal>
-);
+    </Modal>
+  );
 
 
 
@@ -611,6 +664,34 @@ const ScanResultPopup = () => (
 };
 
 const styles = StyleSheet.create({
+
+
+
+
+
+  successBox: {
+    backgroundColor: '#e8f5e9',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4caf50',
+  },
+  errorBox: {
+    backgroundColor: '#ffebee',
+    borderLeftWidth: 4,
+    borderLeftColor: '#f44336',
+  },
+  successButton: {
+    backgroundColor: '#4caf50',
+  },
+  errorButton: {
+    backgroundColor: '#f44336',
+  },
+  
+  // Loading indicator
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
     qrDataInput: {
   borderWidth: 1,

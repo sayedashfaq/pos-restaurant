@@ -23,7 +23,7 @@ import { MenuAPI, UserAPI, OrderAPI, AuthAPI } from '../api/api';
 import * as Print from 'expo-print';
 import { WebView } from 'react-native-webview';
 
-import { buildPrintableHTML } from '../utils/convertJsonToHtml';
+
 
 
 
@@ -719,14 +719,14 @@ useEffect(() => {
                 <View style={styles.actionButtons}>
                   <TouchableOpacity
                     style={styles.kotButton}
-                    onPress={() => handlePlaceOrder('KOT')}
+                    onPress={() => handlePlaceOrder('kot')}
                   >
                     <Text style={styles.kotButtonText}>KOT & Bill</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={styles.billButton}
-                    onPress={() => handlePlaceOrder('BILL')}
+                    onPress={() => handlePlaceOrder('bill')}
                   >
                     <Text style={styles.billButtonText}>Bill</Text>
                   </TouchableOpacity>
