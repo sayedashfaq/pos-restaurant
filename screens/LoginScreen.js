@@ -195,8 +195,8 @@ const handleLogin = async () => {
     />
   </View>
             </LinearGradient>
-            <Text style={styles.logoText}>NassCafe</Text>
-            <Text style={styles.tagline}>Artisan Coffee & Delights</Text>
+            <Text style={styles.logoText}>Nasresto</Text>
+            <Text style={styles.tagline}>Innovation never ends</Text>
           </Animated.View>
 
           <Animated.View style={[

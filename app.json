@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "NassCafe",
-    "slug": "finall",
-   "version": "1.0.1",   
+    "name": "NassResto",
+    "slug": "nass-resto",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/nasscript_logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/nasscript_logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -17,18 +17,20 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/nasscript_logo.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.mrthangu.finall"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+        "port": 5173
+
     },
     "extra": {
       "eas": {
-        "projectId": "cca33f51-5190-4b28-8c40-5448fd3ee7af"
+        "projectId": "468e41f4-b38e-421d-8e95-8174cf98ae95"
       }
     }
   }
