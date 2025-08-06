@@ -94,7 +94,11 @@ const handleApiError = (error) => {
 export const AuthAPI = {
   login: async (email, password) => {
     try {
-      const response = await api.post('/accounts/login/', { email, password });
+      const response = await api.post('/accounts/login/', { email, password },{
+       headers: {
+          'X-Signature': '#mswua&kx+c8&(*#lb3#0lh&lb0!$%r^4+lib#9hlz70uxxkh0'
+        }
+      });
 
       if (response.data.access) {
         await AsyncStorage.setItem('access_token', response.data.access);
@@ -138,6 +142,10 @@ export const AuthAPI = {
 
       const response = await api.post('/accounts/token/refresh/', {
         refresh: refreshToken,
+      },{
+        headers: {
+          Signature: '#mswua&kx+c8&(*#lb3#0lh&lb0!$%r^4+lib#9hlz70uxxkh0'
+        }
       });
 
       await AsyncStorage.setItem('access_token', response.data.access);

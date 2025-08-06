@@ -12,7 +12,8 @@ import {
   ScrollView,
   Platform,
   Button,
-  Modal
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
