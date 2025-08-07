@@ -1,30 +1,26 @@
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BASE_URL, ENDPOINTS } from './endpoints';
-import { convertJsonToHtml } from '../utils/htmlUtils';
-import { transformKotToContent } from '../utils/transformKotToContent ';
-import { transformBillToContent } from '../utils/transformBillToContent ';
-
-
-
-
-
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BASE_URL, ENDPOINTS } from "./endpoints";
+import { convertJsonToHtml } from "../utils/htmlUtils";
+import { transformKotToContent } from "../utils/transformKotToContent ";
+import { transformBillToContent } from "../utils/transformBillToContent ";
+import { startTokenExpiryWatcher } from "../utils/TokenManager";
+import { clearTokenWatcher } from "../utils/TokenManager";
+import { Platform } from "react-native";
 
 const api = axios.create({
   baseURL: BASE_URL,
   timeout: 100000,
   withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
+    "Content-Type": "application/json",
+    Accept: "application/json",
   },
 });
 
-
-
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('access_token');
+    const token = await AsyncStorage.getItem("access_token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -33,45 +29,41 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-
-
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
-        const refreshToken = await AsyncStorage.getItem('refresh_token');
-        if (!refreshToken) throw new Error('No refresh token available');
+        const refreshToken = await AsyncStorage.getItem("refresh_token");
+        if (!refreshToken) throw new Error("No refresh token available");
 
         const response = await axios.post(
           `${BASE_URL}${ENDPOINTS.REFRESH_TOKEN}`,
           { refresh: refreshToken },
           {
             headers: {
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
+              "Content-Type": "application/json",
+              Accept: "application/json",
             },
           }
         );
 
         const newAccessToken = response.data.access;
-        await AsyncStorage.setItem('access_token', newAccessToken);
-
+        await AsyncStorage.setItem("access_token", newAccessToken);
 
         api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
 
         return api(originalRequest);
       } catch (refreshError) {
-        console.error('🔒 Token refresh failed:', refreshError);
+        console.error("🔒 Token refresh failed:", refreshError);
 
-        await AsyncStorage.removeItem('access_token');
-        await AsyncStorage.removeItem('refresh_token');
+        await AsyncStorage.removeItem("access_token");
+        await AsyncStorage.removeItem("refresh_token");
 
         return Promise.reject(refreshError);
       }
@@ -81,30 +73,42 @@ api.interceptors.response.use(
   }
 );
 
-
-
 const handleApiError = (error) => {
   const errorData = error.response?.data || { message: error.message };
-  console.error('API Error:', errorData);
+  console.error("API Error:", errorData);
   throw errorData;
 };
-
-
 
 export const AuthAPI = {
   login: async (email, password) => {
     try {
-      const response = await api.post('/accounts/login/', { email, password },{
-       headers: {
-          'X-Signature': '#mswua&kx+c8&(*#lb3#0lh&lb0!$%r^4+lib#9hlz70uxxkh0'
+      const headers = {};
+      // ✅ Only add custom header if NOT running on web
+      if (Platform.OS !== "web") {
+        headers["X-Signature"] =
+          "#mswua&kx+c8&(*#lb3#0lh&lb0!$%r^4+lib#9hlz70uxxkh0";
+      }
+
+      const response = await api.post(
+        "/accounts/login/",
+        { email, password },
+        {
+          headers,
         }
-      });
+      );
 
       if (response.data.access) {
-        await AsyncStorage.setItem('access_token', response.data.access);
-        await AsyncStorage.setItem('refresh_token', response.data.refresh);
+        await AsyncStorage.setItem("access_token", response.data.access);
+        await AsyncStorage.setItem("refresh_token", response.data.refresh);
 
         api.defaults.headers.common.Authorization = `Bearer ${response.data.access}`;
+
+        // 🧠 Start logout timer here
+        startTokenExpiryWatcher(() => {
+          // Example: navigate to login screen
+          console.log("⏳ Auto logout triggered");
+          // NavigationService.navigate('Login'); // or use your navigator
+        });
       }
 
       return response.data;
@@ -114,7 +118,7 @@ export const AuthAPI = {
   },
   getAccountInfo: async () => {
     try {
-      const response = await api.get('/accounts/account/');
+      const response = await api.get("/accounts/account/");
       return response.data;
     } catch (error) {
       handleApiError(error);
@@ -122,34 +126,43 @@ export const AuthAPI = {
     }
   },
 
-
-
-
   logout: async () => {
     try {
-      await AsyncStorage.removeItem('access_token');
-      await AsyncStorage.removeItem('refresh_token');
+      await AsyncStorage.removeItem("access_token");
+      await AsyncStorage.removeItem("refresh_token");
       delete api.defaults.headers.common.Authorization;
+
+      clearTokenWatcher(); // 🧼 clear logout timer
     } catch (error) {
-      console.error('Logout error', error);
+      console.error("Logout error", error);
       throw error;
     }
   },
 
   refreshToken: async () => {
     try {
-      const refreshToken = await AsyncStorage.getItem('refresh_token');
+      const refreshToken = await AsyncStorage.getItem("refresh_token");
 
-      const response = await api.post('/accounts/token/refresh/', {
-        refresh: refreshToken,
-      },{
-        headers: {
-          Signature: '#mswua&kx+c8&(*#lb3#0lh&lb0!$%r^4+lib#9hlz70uxxkh0'
+      const headers = {};
+      if (Platform.OS !== "web") {
+        headers["Signature"] =
+          "#mswua&kx+c8&(*#lb3#0lh&lb0!$%r^4+lib#9hlz70uxxkh0";
+      }
+
+      const response = await api.post(
+        "/accounts/token/refresh/",
+        {
+          refresh: refreshToken,
+        },
+        {
+          headers,
         }
-      });
+      );
 
-      await AsyncStorage.setItem('access_token', response.data.access);
-      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
+      await AsyncStorage.setItem("access_token", response.data.access);
+      api.defaults.headers.common[
+        "Authorization"
+      ] = `Bearer ${response.data.access}`;
 
       return response.data;
     } catch (error) {
@@ -158,17 +171,14 @@ export const AuthAPI = {
   },
 
   setupAuthHeader: async () => {
-    const token = await AsyncStorage.getItem('access_token');
+    const token = await AsyncStorage.getItem("access_token");
     if (token) {
       api.defaults.headers.common.Authorization = `Bearer ${token}`;
     }
-  }
+  },
 };
 
 export { api };
-
-
-
 
 export const UserAPI = {
   getCustomers: async (params = {}) => {
@@ -201,7 +211,10 @@ export const UserAPI = {
 
   updateCustomer: async (id, customerData) => {
     try {
-      const response = await api.patch(ENDPOINTS.CUSTOMER_DETAIL(id), customerData);
+      const response = await api.patch(
+        ENDPOINTS.CUSTOMER_DETAIL(id),
+        customerData
+      );
       return response.data;
     } catch (error) {
       return handleApiError(error);
@@ -210,13 +223,14 @@ export const UserAPI = {
 
   getStaff: async (role) => {
     try {
-      const endpoint = role === 'waiter' ? ENDPOINTS.WAITERS : ENDPOINTS.DELIVERY;
+      const endpoint =
+        role === "waiter" ? ENDPOINTS.WAITERS : ENDPOINTS.DELIVERY;
       const response = await api.get(endpoint);
       return response.data;
     } catch (error) {
       return handleApiError(error);
     }
-  }
+  },
 };
 
 export const MenuAPI = {
@@ -239,19 +253,15 @@ export const MenuAPI = {
   },
   getMenuItemFiltered: async (categoryName) => {
     try {
-      const endpoint = categoryName ?
-        `/menus?category=${encodeURIComponent(categoryName)}` :
-        '/menus';
+      const endpoint = categoryName
+        ? `/menus?category=${encodeURIComponent(categoryName)}`
+        : "/menus";
       const response = await api.get(endpoint);
       return response.data;
     } catch (error) {
       return handleApiError(error);
     }
   },
-
-
-
-
 
   getCategories: async () => {
     try {
@@ -269,7 +279,7 @@ export const MenuAPI = {
     } catch (error) {
       return handleApiError(error);
     }
-  }
+  },
 };
 
 export const OrderAPI = {
@@ -293,10 +303,10 @@ export const OrderAPI = {
 
   //   printOrderBill: async (orderId, actionType) => {
   //   try {
-  //     const response = await api.get(ENDPOINTS.PRINT_BILL, { 
-  //       params: { 
-  //         order_id: orderId, 
-  //         action: actionType.toLowerCase() 
+  //     const response = await api.get(ENDPOINTS.PRINT_BILL, {
+  //       params: {
+  //         order_id: orderId,
+  //         action: actionType.toLowerCase()
   //       }
   //     });
   //     return response.data;
@@ -307,7 +317,6 @@ export const OrderAPI = {
 
   //   printOrderBill: async (orderId, actionType) => {
   //     try {
-
 
   //      const response = await api.get('/orders/bill', {
   //   params: {
@@ -324,71 +333,70 @@ export const OrderAPI = {
   // In api.js
   // In api.js
 
-printOrderBill: async (orderId, actionType) => {
-  try {
-    const response = await api.get('/orders/bill', {
-      params: { order_id: orderId, action: actionType.toLowerCase() },
-    });
+  printOrderBill: async (orderId, actionType) => {
+    try {
+      const response = await api.get("/orders/bill", {
+        params: { order_id: orderId, action: actionType.toLowerCase() },
+      });
 
-    const data = response?.data;
-    if (!data) throw new Error('No response data from server');
+      const data = response?.data;
+      if (!data) throw new Error("No response data from server");
 
-    let docs = [];
-    let isKot = false;
+      let docs = [];
+      let isKot = false;
 
-    if (actionType === 'kot' && Array.isArray(data.kots)) {
-      docs = data.kots;
-      isKot = true;
-    } else if (actionType === 'bill' && data.bill) {
-      docs = [data.bill];
-    } else {
-      docs = Array.isArray(data) ? data : [data];
+      if (actionType === "kot" && Array.isArray(data.kots)) {
+        docs = data.kots;
+        isKot = true;
+      } else if (actionType === "bill" && data.bill) {
+        docs = [data.bill];
+      } else {
+        docs = Array.isArray(data) ? data : [data];
+      }
+
+      return docs.map((doc) => {
+        const content = isKot
+          ? transformKotToContent(doc)
+          : transformBillToContent(doc);
+
+        return {
+          ...doc,
+          html: convertJsonToHtml(content),
+        };
+      });
+    } catch (error) {
+      console.error("Print API error:", error);
+      throw new Error(
+        error?.response?.data?.message || "Failed to generate print template"
+      );
     }
+  },
 
-    return docs.map(doc => {
-      const content = isKot 
-        ? transformKotToContent(doc) 
-        : transformBillToContent(doc);
-      
-      return {
-        ...doc,
-        html: convertJsonToHtml(content)
-      };
-    });
-  } catch (error) {
-    console.error('Print API error:', error);
-    throw new Error(error?.response?.data?.message || 'Failed to generate print template');
-  }
-},
+  //   printOrderBill: async (orderId, actionType) => {
+  //     try {
+  //       const response = await api.get('/orders/bill', {
 
+  //         params: { order_id: orderId, action: actionType.toLowerCase() }
+  //       });
 
+  //       console.log(response.data)
 
-//   printOrderBill: async (orderId, actionType) => {
-//     try {
-//       const response = await api.get('/orders/bill', {
+  //       if (Array.isArray(response.data)) {
+  //         return response.data.map(doc => ({
+  //           ...doc,
+  //           html: convertJsonToHtml(doc.content)
+  //         }));
+  //       }
 
-//         params: { order_id: orderId, action: actionType.toLowerCase() }
-//       });
-
-//       console.log(response.data)
-
-//       if (Array.isArray(response.data)) {
-//         return response.data.map(doc => ({
-//           ...doc,
-//           html: convertJsonToHtml(doc.content)
-//         }));
-//       }
-
-
-//       return docs.map((doc) => ({
-//   ...doc,
-//   html: convertJsonToHtml(doc.content ?? doc), 
-// }));
-//     } catch (error) {
-//       console.error('Print API error:', error);
-//       throw new Error(error.response?.data?.message || 'Failed to generate print template');
-//     }
-//   },
+  //       return docs.map((doc) => ({
+  //   ...doc,
+  //   html: convertJsonToHtml(doc.content ?? doc),
+  // }));
+  //     } catch (error) {
+  //       console.error('Print API error:', error);
+  //       throw new Error(error.response?.data?.message || 'Failed to generate print template');
+  //     }
+  //   },
   getOrder: async (id) => {
     try {
       const response = await api.get(ENDPOINTS.ORDER_DETAIL(id));
@@ -401,7 +409,7 @@ printOrderBill: async (orderId, actionType) => {
   updateOrder: async (id, updates) => {
     try {
       const response = await api.patch(ENDPOINTS.ORDER_DETAIL(id), updates);
-      console.log(response)
+      console.log(response);
       return response.data;
     } catch (error) {
       return handleApiError(error);
@@ -461,8 +469,6 @@ printOrderBill: async (orderId, actionType) => {
     }
   },
 
-
-
   //    getDeliveryOrders: async () => {
   //   try {
   //     const response = await api.get('/accounts/delivery/orders/');
@@ -472,16 +478,15 @@ printOrderBill: async (orderId, actionType) => {
   //   }
   // },
 
-
   getDeliveryOrders: async () => {
     try {
+      const testToken =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzODAxMDc5LCJpYXQiOjE3NTM3OTgzNzksImp0aSI6ImIzOTcyN2VlZmVmNzRiNzFiMGJmNzk3ODc5MTgxZmIzIiwidXNlcl9pZCI6Mn0.A9tSlpz-Xf76q3ieZ0UviXOXAXnTpiCRsaY9IuuxNT4"; // 👈 Replace with actual token
 
-      const testToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzODAxMDc5LCJpYXQiOjE3NTM3OTgzNzksImp0aSI6ImIzOTcyN2VlZmVmNzRiNzFiMGJmNzk3ODc5MTgxZmIzIiwidXNlcl9pZCI6Mn0.A9tSlpz-Xf76q3ieZ0UviXOXAXnTpiCRsaY9IuuxNT4"; // 👈 Replace with actual token
-
-      const response = await api.get('/accounts/delivery/orders/', {
+      const response = await api.get("/accounts/delivery/orders/", {
         headers: {
-          Authorization: `Bearer ${testToken}` // Manually attach token
-        }
+          Authorization: `Bearer ${testToken}`, // Manually attach token
+        },
       });
 
       return response.data;
@@ -490,18 +495,16 @@ printOrderBill: async (orderId, actionType) => {
     }
   },
 
-
   verifyQRCode: async (qrData) => {
     try {
-      const response = await api.post('/orders/driver/qr/', { qr_data: qrData });
+      const response = await api.post("/orders/driver/qr/", {
+        qr_data: qrData,
+      });
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;
     }
-  }
-
-
-
+  },
 };
 
 export const ReportAPI = {
@@ -521,6 +524,6 @@ export const ReportAPI = {
     } catch (error) {
       return handleApiError(error);
     }
-  }
+  },
 };
 export default api;
