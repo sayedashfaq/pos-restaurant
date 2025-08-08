@@ -1,34 +1,47 @@
-// utils/TokenManager.js
-
-import jwt_decode from 'jwt-decode';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Buffer } from "buffer"; // Expo includes this by default
 
 let logoutTimer = null;
 
-export const startTokenExpiryWatcher = async (onLogout) => {
-  const token = await AsyncStorage.getItem('access_token');
-  if (!token) return;
-
+// Custom JWT decoder for Expo
+const expoJwtDecode = (token) => {
   try {
-    const decoded = jwt_decode(token);
-    const now = Date.now();
-    const expiryTime = decoded.exp * 1000;
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = Buffer.from(base64, "base64").toString("utf-8");
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error("JWT decode error:", error);
+    throw new Error("Invalid token format");
+  }
+};
 
-    const timeUntilExpiry = expiryTime - now;
+export const startTokenExpiryWatcher = async (onLogout) => {
+  try {
+    const token = await AsyncStorage.getItem("access_token");
+    console.log("🔑 Current token:", token);
 
-    console.log(`⏰ Token expires in ${Math.round(timeUntilExpiry / 1000)} seconds`);
+    if (!token) return;
+
+    const decoded = expoJwtDecode(token);
+    console.log("🔍 Decoded token:", decoded);
+
+    const SESSION_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+    console.log(
+      `⏰ Session will expire in ${SESSION_TIMEOUT / 1000} seconds (5 minutes)`
+    );
 
     if (logoutTimer) clearTimeout(logoutTimer);
 
     logoutTimer = setTimeout(async () => {
-      console.log('🔒 Token expired. Auto logging out.');
-      await AsyncStorage.removeItem('access_token');
-      await AsyncStorage.removeItem('refresh_token');
+      console.log("🔒 Session expired (5-minute timeout). Auto logging out.");
+      await AsyncStorage.removeItem("access_token");
+      await AsyncStorage.removeItem("refresh_token");
       if (onLogout) onLogout();
-    }, timeUntilExpiry);
-
+    }, SESSION_TIMEOUT);
   } catch (err) {
-    console.warn('Failed to decode token:', err);
+    console.warn("Token processing failed:", err);
   }
 };
 
