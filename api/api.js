@@ -340,6 +340,8 @@ export const OrderAPI = {
       });
 
       const data = response?.data;
+      console.log(data);
+      
       if (!data) throw new Error("No response data from server");
 
       let docs = [];
@@ -360,9 +362,9 @@ export const OrderAPI = {
           : transformBillToContent(doc);
 
         return {
-          ...doc,
-          html: convertJsonToHtml(content),
-        };
+        ...doc,
+        html: content.value, // Already includes CSS
+      };
       });
     } catch (error) {
       console.error("Print API error:", error);

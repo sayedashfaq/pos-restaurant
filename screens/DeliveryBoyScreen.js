@@ -18,8 +18,7 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialIcons, FontAwesome } from '@expo/vector-icons';
-import { OrderAPI } from '../api/api';
-
+import { OrderAPI,AuthAPI } from '../api/api';
 const DeliveryBoyScreen = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [hasPermission, setHasPermission] = useState(null);
@@ -30,6 +29,7 @@ const DeliveryBoyScreen = () => {
   const cameraRef = useRef(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState('back');
+  const [loading, setLoading] = useState(true);
 
 
     const [scannedData, setScannedData] = useState(null);
@@ -69,11 +69,20 @@ const [showScanResult, setShowScanResult] = useState(false);
 
     } catch (error) {
       Alert.alert('Error', 'Failed to load orders: ' + error.message);
-    }
+    }finally {
+        setLoading(false);
+      }
   };
 
 
-
+const handleLogout = async () => {
+    try {
+      await AuthAPI.logout();
+      navigation.replace("Login");
+    } catch (error) {
+      Alert.alert("Error", "Failed to logout. Please try again.");
+    }
+  };
 
 
 
@@ -700,6 +709,16 @@ const fullAddress = [
     );
   }
 
+  if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#7e4bcc" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      );
+    }
+  
+
   // Main screen
   return (
     <View style={styles.container}>
@@ -753,14 +772,49 @@ const fullAddress = [
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
+       {/* Footer Navigation */}
+            <View style={styles.footer}>
+              {/* <TouchableOpacity
+                style={styles.footerButton}
+                onPress={() => navigation.navigate("Orders")}
+              >
+                <Ionicons name="list" size={24} color="#7e4bcc" />
+                <Text style={styles.footerButtonText}>Orders</Text>
+              </TouchableOpacity> */}
+      
+              {/* <TouchableOpacity
+                style={styles.footerButton}
+                onPress={() => navigation.navigate("Menu")}
+              >
+                <Ionicons name="fast-food" size={24} color="#7e4bcc" />
+                <Text style={styles.footerButtonText}>Menu</Text>
+              </TouchableOpacity> */}
+      
+              <TouchableOpacity style={styles.footerButton} 
+              onPress={handleLogout}
+              >
+                <Ionicons name="log-out" size={24} color="#7e4bcc" />
+                <Text style={styles.footerButtonText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
     </View>
+    
   );
 };
 
 const styles = StyleSheet.create({
 
 
-
+loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    color: "#7e4bcc",
+    fontSize: 16,
+  },
 
 
   successBox: {
@@ -808,6 +862,36 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 30,
+  },
+  footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#e0d7f0",
+    paddingVertical: 12,
+    paddingBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 100,
+  },
+  footerButton: {
+    alignItems: "center",
+    flex: 1,
+  },
+  footerButtonText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: "Poppins-Medium",
+    color: "#7e4bcc",
   },
   header: {
     flexDirection: 'row',
