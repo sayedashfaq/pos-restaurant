@@ -8,7 +8,6 @@ import LoginScreen from './screens/LoginScreen';
 import MenuScreen from './screens/MenuScreen';
 import OrderScreen from './screens/OrderScreen';
 import DeliveryBoyScreen from './screens/DeliveryBoyScreen';
-
 import { AuthAPI } from './api/api';
 
 const Stack = createNativeStackNavigator();
@@ -16,6 +15,18 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [initialScreen, setInitialScreen] = useState('Login');
+
+  useEffect(() => {
+  const forceLogoutForTesting = async () => {
+    console.log('Clearing tokens for testing...');
+    await AsyncStorage.removeItem('access_token');
+    await AsyncStorage.removeItem('refresh_token');
+    // Add any other storage items you use for auth
+  };
+  
+  // Call this when you need to reset auth state
+  // forceLogoutForTesting(); // Uncomment when needed
+}, []);
 
   useEffect(() => {
     const initAuth = async () => {

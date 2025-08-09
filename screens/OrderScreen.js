@@ -12,7 +12,7 @@ import {
   TouchableWithoutFeedback,
   Animated,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,KeyboardAvoidingView,Platform,Keyboard,ScrollView,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -188,46 +188,94 @@ export default function OrderScreen() {
       ]
     );
   };
+ const totalSelectedAmount = orders
+    .filter(order => selectedOrders.includes(order.id))
+    .reduce((sum, order) => sum + order.total, 0);
 
+  // const confirmPayment = async () => {
+  //   if (selectedPayment === 'cash' && !cashAmount) {
+  //     Alert.alert('Enter Amount', 'Please enter the cash amount');
+  //     return;
+  //   }
+
+  //   if (selectedPayment === 'cash') {
+  //     const amount = parseFloat(cashAmount);
+  //     if (isNaN(amount)) {
+  //       Alert.alert('Invalid Amount', 'Please enter a valid number');
+  //       return;
+  //     }
+  //   } else {
+  //     paymentAmount = totalSelectedAmount;
+  //   }
+
+  //   try {
+  //     await Promise.all(selectedOrders.map(id =>
+  //       OrderAPI.updateOrder(id, {
+  //         order_status: 'settled',
+  //         payment_amount: cashAmount,
+  //         payment_type: selectedPayment,
+  //       })
+  //     ));
+
+  //     setOrders(orders.map(order =>
+  //       selectedOrders.includes(order.id)
+  //         ? { ...order, order_status: 'settled', selected: false }
+  //         : order
+  //     ));
+
+  //     setSelectedOrders([]);
+  //     setShowPaymentModal(false);
+  //     setCashAmount('');
+  //     Alert.alert('Payment Confirmed', 'Order has been settled successfully');
+  //     fetchOrders();
+  //   } catch (error) {
+  //     Alert.alert('Error', `Failed to settle orders: ${error.message || error}`);
+  //     console.error(error);
+  //   }
+  // };
   const confirmPayment = async () => {
-    if (selectedPayment === 'cash' && !cashAmount) {
-      Alert.alert('Enter Amount', 'Please enter the cash amount');
+  if (selectedPayment === 'cash' && !cashAmount) {
+    Alert.alert('Enter Amount', 'Please enter the cash amount');
+    return;
+  }
+
+  let paymentAmount;
+  
+  if (selectedPayment === 'cash') {
+    paymentAmount = parseFloat(cashAmount);
+    if (isNaN(paymentAmount)) {
+      Alert.alert('Invalid Amount', 'Please enter a valid number');
       return;
     }
+  } else {
+    paymentAmount = totalSelectedAmount;
+  }
 
-    if (selectedPayment === 'cash') {
-      const amount = parseFloat(cashAmount);
-      if (isNaN(amount)) {
-        Alert.alert('Invalid Amount', 'Please enter a valid number');
-        return;
-      }
-    }
+  try {
+    await Promise.all(selectedOrders.map(id =>
+      OrderAPI.updateOrder(id, {
+        order_status: 'settled',
+        payment_amount: paymentAmount, // Use the calculated paymentAmount here
+        payment_type: selectedPayment,
+      })
+    ));
 
-    try {
-      await Promise.all(selectedOrders.map(id =>
-        OrderAPI.updateOrder(id, {
-          order_status: 'settled',
-          payment_amount: cashAmount,
-          payment_type: selectedPayment,
-        })
-      ));
+    setOrders(orders.map(order =>
+      selectedOrders.includes(order.id)
+        ? { ...order, order_status: 'settled', selected: false }
+        : order
+    ));
 
-      setOrders(orders.map(order =>
-        selectedOrders.includes(order.id)
-          ? { ...order, order_status: 'settled', selected: false }
-          : order
-      ));
-
-      setSelectedOrders([]);
-      setShowPaymentModal(false);
-      setCashAmount('');
-      Alert.alert('Payment Confirmed', 'Order has been settled successfully');
-      fetchOrders();
-    } catch (error) {
-      Alert.alert('Error', `Failed to settle orders: ${error.message || error}`);
-      console.error(error);
-    }
-  };
+    setSelectedOrders([]);
+    setShowPaymentModal(false);
+    setCashAmount('');
+    Alert.alert('Payment Confirmed', 'Order has been settled successfully');
+    fetchOrders();
+  } catch (error) {
+    Alert.alert('Error', `Failed to settle orders: ${error.message || error}`);
+    console.error(error);
+  }
+};
 
   const printDocumentsSequentially = async (docs) => {
     setIsPrinting(true);
@@ -305,9 +353,7 @@ const printBill = async (orderId) => {
     setSelectedOrders(selected);
   }, [orders]);
 
-  const totalSelectedAmount = orders
-    .filter(order => selectedOrders.includes(order.id))
-    .reduce((sum, order) => sum + order.total, 0);
+ 
 
   const animateButton = (callback) => {
     Animated.sequence([
@@ -585,18 +631,21 @@ const printBill = async (orderId) => {
         </SafeAreaView>
       </Modal>
 
-      {/* Payment Modal */}
-      <Modal
-        visible={showPaymentModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowPaymentModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowPaymentModal(false)}>
-          <View style={styles.modalOverlay} />
-        </TouchableWithoutFeedback>
-
+      
+<Modal
+  visible={showPaymentModal}
+  transparent={true}
+  animationType="fade"
+  onRequestClose={() => setShowPaymentModal(false)}
+>
+  <KeyboardAvoidingView
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    style={styles.keyboardView}
+  >
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
+          {/* --- Modal Body Starts --- */}
           <Text style={styles.modalTitle}>Settle Payment</Text>
           <Text style={styles.modalSubtitle}>Select payment method and complete transaction</Text>
 
@@ -663,8 +712,15 @@ const printBill = async (orderId) => {
           >
             <Text style={styles.closeButtonText}>Cancel</Text>
           </TouchableOpacity>
+          {/* --- Modal Body Ends --- */}
         </View>
-      </Modal>
+      </View>
+    </TouchableWithoutFeedback>
+  </KeyboardAvoidingView>
+</Modal>
+
+
+
     </SafeAreaView>
   );
 }
@@ -959,25 +1015,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Poppins-Bold',
   },
+  keyboardView: {
+  flex: 1,
+
+},
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.5)',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
   modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 25,
-    position: 'absolute',
-    top: '10%',
-    left: '5%',
-    right: '5%',
-    maxHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
-  },
+  width: '90%',
+  backgroundColor: 'white',
+  borderRadius: 20,
+  padding: 25,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.2,
+  shadowRadius: 20,
+  elevation: 10,
+},
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',

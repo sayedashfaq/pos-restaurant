@@ -12,13 +12,13 @@ import {
   ScrollView,
   Platform,
   Button,
-  Modal
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialIcons, FontAwesome } from '@expo/vector-icons';
-import { OrderAPI } from '../api/api';
-
+import { OrderAPI,AuthAPI } from '../api/api';
 const DeliveryBoyScreen = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [hasPermission, setHasPermission] = useState(null);
@@ -29,6 +29,7 @@ const DeliveryBoyScreen = () => {
   const cameraRef = useRef(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState('back');
+  const [loading, setLoading] = useState(true);
 
 
     const [scannedData, setScannedData] = useState(null);
@@ -63,52 +64,63 @@ const [showScanResult, setShowScanResult] = useState(false);
   const fetchDeliveryOrders = async () => {
     try {
       const response = await OrderAPI.getDeliveryOrders();
-      setOrders(response.orders || []); 
+      // setOrders(response.orders || []); 
+            setOrders(response || []); // ✅ FIXED: response is an array directly
+
     } catch (error) {
       Alert.alert('Error', 'Failed to load orders: ' + error.message);
+    }finally {
+        setLoading(false);
+      }
+  };
+
+
+const handleLogout = async () => {
+    try {
+      await AuthAPI.logout();
+      navigation.replace("Login");
+    } catch (error) {
+      Alert.alert("Error", "Failed to logout. Please try again.");
     }
   };
 
 
 
 
-
-
-
   const [orders, setOrders] = useState([
-    {
-      id: 'ORD-1284',
-      customerName: 'Rajesh Kumar',
-      deliveryAddress: '24, Hamad, Qatar',
-      customerPhone: '9876543210',
-      totalAmount: 450,
-      status: 'assigned',
-      items: [
-        { name: 'Paneer Butter Masala', quantity: 2, price: 180 },
-        { name: 'Garlic Naan', quantity: 4, price: 160 },
-        { name: 'Mango Lassi', quantity: 2, price: 110 }
-      ],
-      distance: '2.5 km',
-      time: '15 min',
-      restaurant: 'NassResto'
-    },
-    {
-      id: 'ORD-1285',
-      customerName: 'Priya Sharma',
-      deliveryAddress: 'Block B, Apartment 302, Badam',
-      customerPhone: '8765432109',
-      totalAmount: 620,
-      status: 'assigned',
-      items: [
-        { name: 'Chicken Biryani', quantity: 1, price: 220 },
-        { name: 'Veg Fried Rice', quantity: 1, price: 150 },
-        { name: 'Chicken 65', quantity: 1, price: 180 },
-        { name: 'Coke', quantity: 2, price: 70 }
-      ],
-      distance: '3.2 km',
-      time: '20 min',
-      restaurant: 'NassResto'
-    }
+    // {
+    //   id: 'ORD-1284',
+    //   customerName: 'Rajesh Kumar',
+    //   deliveryAddress: '24, Hamad, Qatar',
+    //   customerPhone: '9876543210',
+    //   totalAmount: 450,
+    //   status: 'assigned',
+    //   items: [
+    //     { name: 'Paneer Butter Masala', quantity: 2, price: 180 },
+    //     { name: 'Garlic Naan', quantity: 4, price: 160 },
+    //     { name: 'Mango Lassi', quantity: 2, price: 110 }
+    //   ],
+    //   distance: '2.5 km',
+    //   time: '15 min',
+    //   restaurant: 'NassResto'
+    // },
+    // {
+    //   id: 'ORD-1285',
+    //   customerName: 'Priya Sharma',
+    //   deliveryAddress: 'Block B, Apartment 302, Badam',
+    //   customerPhone: '8765432109',
+    //   totalAmount: 620,
+    //   status: 'assigned',
+    //   items: [
+    //     { name: 'Chicken Biryani', quantity: 1, price: 220 },
+    //     { name: 'Veg Fried Rice', quantity: 1, price: 150 },
+    //     { name: 'Chicken 65', quantity: 1, price: 180 },
+    //     { name: 'Coke', quantity: 2, price: 70 }
+    //   ],
+    //   distance: '3.2 km',
+    //   time: '20 min',
+    //   restaurant: 'NassResto'
+    // }
   ]);
 
   
@@ -279,47 +291,138 @@ const [showScanResult, setShowScanResult] = useState(false);
   };
 
  
-  const renderOrderItem = ({ item }) => (
+  // const renderOrderItem = ({ item }) => (
+  //   <TouchableOpacity 
+  //     style={[
+  //       styles.orderItem, 
+  //       item.status === 'delivered' ? styles.completedOrder : styles.pendingOrder
+  //     ]}
+  //     onPress={() => setActiveOrder(item)}
+  //   >
+  //     <View style={styles.orderHeader}>
+  //       <Text style={styles.orderId}>{item.id}</Text>
+  //       <View style={[
+  //         styles.statusBadge,
+  //         item.status === 'delivered' ? styles.completedBadge : styles.pendingBadge
+  //       ]}>
+  //         <Text style={styles.statusText}>
+  //           {item.status === 'delivered' ? 'Delivered' : 'Pending'}
+  //         </Text>
+  //       </View>
+  //     </View>
+  //     <View style={styles.orderInfo}>
+  //       <Ionicons name="person" size={16} color="#555" />
+  //       <Text style={styles.orderText}>{item.customerName}</Text>
+  //     </View>
+  //     <View style={styles.orderInfo}>
+  //       <Ionicons name="location" size={16} color="#555" />
+  //       <Text style={styles.orderText}>{item.deliveryAddress}</Text>
+  //     </View>
+  //     <View style={styles.orderInfo}>
+  //       <Ionicons name="restaurant" size={16} color="#555" />
+  //       <Text style={styles.orderText}>{item.restaurant}</Text>
+  //     </View>
+  //     <View style={styles.orderFooter}>
+  //       <Text style={styles.orderAmount}>QAR {item.totalAmount}</Text>
+  //       <View style={styles.timeInfo}>
+  //         <Ionicons name="time" size={14} color="#555" />
+  //         <Text style={styles.timeText}>{item.time}</Text>
+  //       </View>
+  //     </View>
+  //   </TouchableOpacity>
+  // );
+
+  const renderOrderItem = ({ item }) => {
+  // Fallbacks to prevent crashes
+  const orderNumber = item?.order_number || `#${item?.id}`;
+  const status = item?.status || 'unknown';
+  const pickupTime = item?.pickup_time
+    ? new Date(item.pickup_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'N/A';
+  const deliveryTime = item?.delivery_time
+    ? new Date(item.delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'Pending';
+
+  const customer = item?.customer || {};
+  const address = item?.address || {};
+
+  // Build full address string safely
+const fullAddress = [
+  address.label,
+  address.zone,
+  address.street,
+  address.building ? `Bldg ${address.building}` : null,
+  address.floor ? `Fl ${address.floor}` : null,
+  address.apartment ? `Apt ${address.apartment}` : null,
+].filter(Boolean).join(', ');
+
+  return (
     <TouchableOpacity 
       style={[
         styles.orderItem, 
-        item.status === 'delivered' ? styles.completedOrder : styles.pendingOrder
+        status === 'delivered' ? styles.completedOrder : styles.pendingOrder
       ]}
-      onPress={() => setActiveOrder(item)}
+      // onPress={() => setActiveOrder(item)} // Uncomment if needed
     >
+      {/* Order Header */}
       <View style={styles.orderHeader}>
-        <Text style={styles.orderId}>{item.id}</Text>
+        <Text style={styles.orderId}>{orderNumber}</Text>
         <View style={[
           styles.statusBadge,
-          item.status === 'delivered' ? styles.completedBadge : styles.pendingBadge
+          status === 'delivered' ? styles.completedBadge : styles.pendingBadge
         ]}>
           <Text style={styles.statusText}>
-            {item.status === 'delivered' ? 'Delivered' : 'Pending'}
+            {status.charAt(0).toUpperCase() + status.slice(1)}
           </Text>
         </View>
       </View>
-      <View style={styles.orderInfo}>
-        <Ionicons name="person" size={16} color="#555" />
-        <Text style={styles.orderText}>{item.customerName}</Text>
-      </View>
-      <View style={styles.orderInfo}>
-        <Ionicons name="location" size={16} color="#555" />
-        <Text style={styles.orderText}>{item.deliveryAddress}</Text>
-      </View>
-      <View style={styles.orderInfo}>
-        <Ionicons name="restaurant" size={16} color="#555" />
-        <Text style={styles.orderText}>{item.restaurant}</Text>
-      </View>
-      <View style={styles.orderFooter}>
-        <Text style={styles.orderAmount}>QAR {item.totalAmount}</Text>
-        <View style={styles.timeInfo}>
-          <Ionicons name="time" size={14} color="#555" />
-          <Text style={styles.timeText}>{item.time}</Text>
+
+      {/* Notes (optional) */}
+      {item?.notes && (
+        <View style={styles.orderInfo}>
+          <Ionicons name="information-circle" size={16} color="#555" />
+          <Text style={styles.orderText}>{item.notes}</Text>
         </View>
+      )}
+
+      {/* Customer Name */}
+      {customer.full_name && (
+        <View style={styles.orderInfo}>
+          <Ionicons name="person" size={16} color="#555" />
+          <Text style={styles.orderText}>{customer.full_name}</Text>
+        </View>
+      )}
+
+      {/* Customer Phone */}
+      {customer.phone_number && (
+        <View style={styles.orderInfo}>
+          <Ionicons name="call" size={16} color="#555" />
+          <Text style={styles.orderText}>{customer.phone_number}</Text>
+        </View>
+      )}
+
+      {/* Address */}
+      {fullAddress && (
+        <View style={styles.orderInfo}>
+          <Ionicons name="location" size={16} color="#555" />
+          <Text style={styles.orderText}>{fullAddress}</Text>
+        </View>
+      )}
+
+      {/* Pickup Time */}
+      <View style={styles.orderInfo}>
+        <Ionicons name="time" size={16} color="#555" />
+        <Text style={styles.orderText}>Pickup: {pickupTime}</Text>
+      </View>
+
+      {/* Delivery Time */}
+      <View style={styles.orderInfo}>
+        <Ionicons name="time" size={16} color="#555" />
+        <Text style={styles.orderText}>Delivery: {deliveryTime}</Text>
       </View>
     </TouchableOpacity>
   );
-
+};
 
 
 
@@ -606,6 +709,16 @@ const [showScanResult, setShowScanResult] = useState(false);
     );
   }
 
+  if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#7e4bcc" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      );
+    }
+  
+
   // Main screen
   return (
     <View style={styles.container}>
@@ -659,14 +772,49 @@ const [showScanResult, setShowScanResult] = useState(false);
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
+       {/* Footer Navigation */}
+            <View style={styles.footer}>
+              {/* <TouchableOpacity
+                style={styles.footerButton}
+                onPress={() => navigation.navigate("Orders")}
+              >
+                <Ionicons name="list" size={24} color="#7e4bcc" />
+                <Text style={styles.footerButtonText}>Orders</Text>
+              </TouchableOpacity> */}
+      
+              {/* <TouchableOpacity
+                style={styles.footerButton}
+                onPress={() => navigation.navigate("Menu")}
+              >
+                <Ionicons name="fast-food" size={24} color="#7e4bcc" />
+                <Text style={styles.footerButtonText}>Menu</Text>
+              </TouchableOpacity> */}
+      
+              <TouchableOpacity style={styles.footerButton} 
+              onPress={handleLogout}
+              >
+                <Ionicons name="log-out" size={24} color="#7e4bcc" />
+                <Text style={styles.footerButtonText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
     </View>
+    
   );
 };
 
 const styles = StyleSheet.create({
 
 
-
+loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    color: "#7e4bcc",
+    fontSize: 16,
+  },
 
 
   successBox: {
@@ -714,6 +862,36 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 30,
+  },
+  footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#e0d7f0",
+    paddingVertical: 12,
+    paddingBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 100,
+  },
+  footerButton: {
+    alignItems: "center",
+    flex: 1,
+  },
+  footerButtonText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: "Poppins-Medium",
+    color: "#7e4bcc",
   },
   header: {
     flexDirection: 'row',
