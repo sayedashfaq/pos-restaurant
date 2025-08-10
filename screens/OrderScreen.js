@@ -234,7 +234,7 @@ export default function OrderScreen() {
   //   }
   // };
   const confirmPayment = async () => {
-  if (selectedPayment === 'cash' && !cashAmount) {
+  if (selectedPayment === 'cash' && !cashAmount) { 
     Alert.alert('Enter Amount', 'Please enter the cash amount');
     return;
   }
@@ -670,7 +670,7 @@ const printBill = async (orderId) => {
             ))}
           </View>
 
-          {selectedPayment === 'Cash' && (
+          {/* {selectedPayment === 'Cash' && (
             <View style={styles.cashInputContainer}>
               <Text style={styles.inputLabel}>Cash Amount</Text>
               <TextInput
@@ -682,7 +682,7 @@ const printBill = async (orderId) => {
                 style={styles.cashInput}
               />
             </View>
-          )}
+          )} */}
 
           <View style={styles.totalContainer}>
             <Text style={styles.totalLabel}>Total Amount</Text>

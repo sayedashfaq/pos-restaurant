@@ -1280,7 +1280,8 @@ const styles = StyleSheet.create({
   },
   categoriesContainer: {
     paddingHorizontal: 15,
-    paddingBottom: 8,
+    paddingBottom: 18 ,
+    // marginBottom:10,
   },
   categoryItem: {
     backgroundColor: "#f0ebff",
