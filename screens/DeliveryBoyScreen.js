@@ -60,7 +60,7 @@ const DeliveryBoyScreen = () => {
     try {
       const response = await OrderAPI.getDeliveryOrders();
       // setOrders(response.orders || []);
-      setOrders(response || []); // ✅ FIXED: response is an array directly
+      setOrders(response?.orders || []); // ✅ FIXED: response is an array directly
     } catch (error) {
       Alert.alert("Error", "Failed to load orders: " + error.message);
     } finally {
@@ -113,52 +113,104 @@ const DeliveryBoyScreen = () => {
     // }
   ]);
 
-  const handleBarCodeScanned = async ({ data }) => {
+  // const handleBarCodeScanned = async ({ data }) => {
+  //   if (!cameraReady) return;
+
+  //   setIsScanning(false);
+  //   setCameraReady(false); // Reset camera ready state
+
+  //   try {
+  //     // Show loading state
+  //     setScanResult({
+  //       loading: true,
+  //       message: "Verifying QR code...",
+  //     });
+  //     setShowScanResult(true);
+
+  //     // Verify with backend
+  //     const response = await OrderAPI.verifyQRCode(data);
+
+  //     if (response.order) {
+  //       // Success - order verified
+  //       setScanResult({
+  //         success: true,
+  //         message: "Order verified successfully!",
+  //         order: response.order,
+  //       });
+
+  //       // Update active order
+  //       setActiveOrder(response.order);
+
+  //       // Update orders list
+  //       setOrders((prevOrders) => [...prevOrders, response.order]);
+
+  //       // Update daily stats
+  //       setDailyStats((prev) => ({
+  //         deliveries: prev.deliveries + 1,
+  //         collectedAmount: prev.collectedAmount + response.order.totalAmount,
+  //       }));
+  //     } else {
+  //       // Verification failed
+  //       setScanResult({
+  //         success: false,
+  //         message: response.message || "QR verification failed",
+  //         error: true,
+  //       });
+  //     }
+  //   } catch (error) {
+  //     // API error
+  //     setScanResult({
+  //       success: false,
+  //       message: error.message || "Failed to verify QR code",
+  //       error: true,
+  //     });
+  //   } finally {
+  //     setShowScanResult(true);
+  //   }
+  // };
+const handleBarCodeScanned = async ({ data }) => {
     if (!cameraReady) return;
 
     setIsScanning(false);
-    setCameraReady(false); // Reset camera ready state
+    setCameraReady(false);
 
     try {
-      // Show loading state
       setScanResult({
         loading: true,
         message: "Verifying QR code...",
       });
       setShowScanResult(true);
 
-      // Verify with backend
       const response = await OrderAPI.verifyQRCode(data);
 
-      if (response.order) {
-        // Success - order verified
+      // Handle success case
+      if (response === "Order Picked Successfully") {
         setScanResult({
           success: true,
-          message: "Order verified successfully!",
-          order: response.order,
+          message: response,
         });
+        
+        fetchDeliveryOrders(); 
 
-        // Update active order
-        setActiveOrder(response.order);
-
-        // Update orders list
-        setOrders((prevOrders) => [...prevOrders, response.order]);
-
-        // Update daily stats
-        setDailyStats((prev) => ({
-          deliveries: prev.deliveries + 1,
-          collectedAmount: prev.collectedAmount + response.order.totalAmount,
-        }));
-      } else {
-        // Verification failed
+      } 
+      // Handle already picked case
+      else if (response === "Order already picked by you") {
         setScanResult({
           success: false,
-          message: response.message || "QR verification failed",
+          message: response,
+          warning: true, // Add a warning type for UI differentiation
+        });
+        
+      }
+      // Handle other cases
+      else {
+        setScanResult({
+          success: false,
+          message: response || "QR verification failed",
           error: true,
         });
       }
     } catch (error) {
-      // API error
       setScanResult({
         success: false,
         message: error.message || "Failed to verify QR code",
@@ -317,7 +369,8 @@ const DeliveryBoyScreen = () => {
 
   const renderOrderItem = ({ item }) => {
     // Fallbacks to prevent crashes
-    const orderNumber = item?.order_number || `#${item?.id}`;
+    const order =item?.order || {};
+    const orderNumber = order?.order_number || `#${item?.id}`;
     const status = item?.status || "unknown";
     const pickupTime = item?.pickup_time
       ? new Date(item.pickup_time).toLocaleTimeString([], {

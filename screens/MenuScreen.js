@@ -191,6 +191,12 @@ export default function MenuScreen() {
     });
   };
 
+  const handleResetCart = () => {
+    setCart([]);
+    // setTotalItems(0);
+    // Optionally reset other related states
+  };
+
   const handleCartQuantityChange = (itemId, change) => {
     setCart((prev) => {
       const updatedCart = prev
@@ -474,22 +480,7 @@ export default function MenuScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesContainer}
         >
-          {/* <TouchableOpacity
-            onPress={() => handleCategorySelect('All')}
-            style={[
-              styles.categoryItem,
-              selectedCategory === 'All' && styles.selectedCategory
-            ]}
-          >
-            <Text style={[
-              styles.categoryText,
-              selectedCategory === 'All' && styles.selectedCategoryText
-            ]}>
-              All
-            </Text>
-          </TouchableOpacity> */}
-
-          {categories.map((category) => (
+         {categories.map((category) => (
             <TouchableOpacity
               key={category.id}
               onPress={() => handleCategorySelect(category.name)}
@@ -530,11 +521,18 @@ export default function MenuScreen() {
           ListHeaderComponent={
             <>
               <Text style={[styles.sectionTitle, styles.menuTitle]}>Menus</Text>
+
               {cart.length > 0 && (
                 <View style={styles.cartItemsContainer}>
-                  <Text style={styles.sectionTitle}>
-                    Order Items ({totalItems})
-                  </Text>
+                  <View style={styles.cartHeaderRow}>
+                    <Text style={styles.sectionTitle}>
+                      Order Items ({totalItems})
+                    </Text>
+                    <TouchableOpacity onPress={handleResetCart}>
+                      <Text style={styles.resetText}>Reset</Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <FlatList
                     data={cart}
                     renderItem={renderCartItem}
@@ -546,216 +544,227 @@ export default function MenuScreen() {
             </>
           }
           ListFooterComponent={
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={styles.orderFormContainer}
-              keyboardVerticalOffset={80}
-            >
-              <Text style={styles.sectionTitle}>Order Details</Text>
+            // <KeyboardAvoidingView
+            //   behavior={Platform.OS === "ios" ? "padding" : "height"}
+            //   style={styles.orderFormContainer}
+            //   keyboardVerticalOffset={80}
+            // >
+              <>
+              <ScrollView
+                contentContainerStyle={styles.orderFormContainer}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.sectionTitle}>Order Details</Text>
 
-              <View style={styles.sectionBox}>
-                <Text style={styles.subSectionTitle}>Order Type</Text>
-                <View style={styles.orderTypeContainer}>
-                  {orderTypes.map((type) => (
-                    <TouchableOpacity
-                      key={type}
-                      style={styles.orderTypeButton}
-                      onPress={() => setSelectedOrderType(type)}
-                    >
-                      <View
-                        style={[
-                          styles.radioOuter,
-                          selectedOrderType === type &&
-                            styles.radioOuterSelected,
-                        ]}
+                <View style={styles.sectionBox}>
+                  <Text style={styles.subSectionTitle}>Order Type</Text>
+                  <View style={styles.orderTypeContainer}>
+                    {orderTypes.map((type) => (
+                      <TouchableOpacity
+                        key={type}
+                        style={styles.orderTypeButton}
+                        onPress={() => setSelectedOrderType(type)}
                       >
-                        {selectedOrderType === type && (
-                          <View style={styles.radioInner} />
-                        )}
-                      </View>
-                      <Text style={styles.orderTypeText}>{type}</Text>
-                    </TouchableOpacity>
-                  ))}
+                        <View
+                          style={[
+                            styles.radioOuter,
+                            selectedOrderType === type &&
+                              styles.radioOuterSelected,
+                          ]}
+                        >
+                          {selectedOrderType === type && (
+                            <View style={styles.radioInner} />
+                          )}
+                        </View>
+                        <Text style={styles.orderTypeText}>{type}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
-              </View>
 
-              {selectedOrderType === "Dine in" && (
-                <View style={styles.sectionBox}>
-                  <Text style={styles.subSectionTitle}>Select Table</Text>
-                  <TouchableOpacity
-                    style={styles.pickerButton}
-                    onPress={() => setShowTablePicker(true)}
-                  >
-                    <Text
-                      style={
-                        selectedTable
-                          ? styles.pickerText
-                          : styles.pickerPlaceholder
-                      }
-                    >
-                      {selectedTable?.name || "Select a table..."}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#888" />
-                  </TouchableOpacity>
-
-                  <Text style={styles.subSectionTitle}>Number of Guests</Text>
-                  <TextInput
-                    style={styles.feeInput}
-                    keyboardType="numeric"
-                    value={numberOfGuests}
-                    onChangeText={setNumberOfGuests}
-                    placeholder="1"
-                  />
-                </View>
-              )}
-
-              {selectedOrderType === "Delivery" && (
-                <View style={styles.sectionBox}>
-                  <Text style={styles.subSectionTitle}>
-                    Select Delivery Boy
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.pickerButton}
-                    onPress={() => setShowDeliveryBoyPicker(true)}
-                  >
-                    <Text
-                      style={
-                        selectedDeliveryBoy
-                          ? styles.pickerText
-                          : styles.pickerPlaceholder
-                      }
-                    >
-                      {selectedDeliveryBoy?.name || "Select a delivery boy..."}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#888" />
-                  </TouchableOpacity>
-
-                  <Text style={styles.subSectionTitle}>Delivery Fee</Text>
-                  <TextInput
-                    style={styles.feeInput}
-                    keyboardType="numeric"
-                    value={deliveryFee}
-                    onChangeText={setDeliveryFee}
-                    placeholder="0.00"
-                  />
-                </View>
-              )}
-
-              {selectedOrderType === "Takeaway" && (
-                <View style={styles.sectionBox}>
-                  <Text style={styles.subSectionTitle}>Select Counter</Text>
-                  <TouchableOpacity
-                    style={styles.pickerButton}
-                    onPress={() => setShowCounterPicker(true)}
-                  >
-                    <Text
-                      style={
-                        selectedCounter
-                          ? styles.pickerText
-                          : styles.pickerPlaceholder
-                      }
-                    >
-                      {selectedCounter?.name || "Select a counter..."}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#888" />
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {selectedOrderType === "Online Order" && (
-                <View style={styles.sectionBox}>
-                  <Text style={styles.subSectionTitle}>Select Platform</Text>
-                  <TouchableOpacity
-                    style={styles.pickerButton}
-                    onPress={() => setShowPlatformPicker(true)}
-                  >
-                    <Text
-                      style={
-                        selectedPlatform
-                          ? styles.pickerText
-                          : styles.pickerPlaceholder
-                      }
-                    >
-                      {selectedPlatform?.name || "Select a platform..."}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#888" />
-                  </TouchableOpacity>
-
-                  <Text style={styles.subSectionTitle}>Delivery Fee</Text>
-                  <TextInput
-                    style={styles.feeInput}
-                    keyboardType="numeric"
-                    value={deliveryFee}
-                    onChangeText={setDeliveryFee}
-                    placeholder="0.00"
-                  />
-                </View>
-              )}
-
-              <View style={styles.sectionBox}>
-                <Text style={styles.subSectionTitle}>Select Customer</Text>
-                <TouchableOpacity
-                  style={styles.pickerButton}
-                  onPress={() => setShowCustomerPicker(true)}
-                >
-                  {selectedCustomer ? (
-                    <Text style={styles.pickerText}>
-                      {selectedCustomer.full_name}
-                    </Text>
-                  ) : (
-                    <Text style={styles.pickerPlaceholder}>
-                      Select a customer...
-                    </Text>
-                  )}
-                  <Ionicons name="chevron-down" size={20} color="#888" />
-                </TouchableOpacity>
-
-                {(selectedOrderType === "Delivery" ||
-                  selectedOrderType === "Online Order") && (
-                  <>
-                    <Text style={styles.subSectionTitle}>Delivery Address</Text>
+                {selectedOrderType === "Dine in" && (
+                  <View style={styles.sectionBox}>
+                    <Text style={styles.subSectionTitle}>Select Table</Text>
                     <TouchableOpacity
                       style={styles.pickerButton}
-                      onPress={() => setShowAddressPicker(true)}
+                      onPress={() => setShowTablePicker(true)}
                     >
                       <Text
                         style={
-                          selectedAddress
+                          selectedTable
                             ? styles.pickerText
                             : styles.pickerPlaceholder
                         }
                       >
-                        {selectedAddress || "Enter delivery address..."}
+                        {selectedTable?.name || "Select a table..."}
                       </Text>
                       <Ionicons name="chevron-down" size={20} color="#888" />
                     </TouchableOpacity>
-                  </>
+
+                    <Text style={styles.subSectionTitle}>Number of Guests</Text>
+                    <TextInput
+                      style={styles.feeInput}
+                      keyboardType="numeric"
+                      value={numberOfGuests}
+                      onChangeText={setNumberOfGuests}
+                      placeholder="1"
+                    />
+                  </View>
                 )}
-              </View>
 
-              <View style={styles.totalSection}>
-                <Text style={styles.totalLabel}>Total Payment</Text>
-                <Text style={styles.totalAmount}>
-                  QAR {totalAmount.toFixed(2)}
-                </Text>
+                {selectedOrderType === "Delivery" && (
+                  <View style={styles.sectionBox}>
+                    <Text style={styles.subSectionTitle}>
+                      Select Delivery Boy
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.pickerButton}
+                      onPress={() => setShowDeliveryBoyPicker(true)}
+                    >
+                      <Text
+                        style={
+                          selectedDeliveryBoy
+                            ? styles.pickerText
+                            : styles.pickerPlaceholder
+                        }
+                      >
+                        {selectedDeliveryBoy?.name ||
+                          "Select a delivery boy..."}
+                      </Text>
+                      <Ionicons name="chevron-down" size={20} color="#888" />
+                    </TouchableOpacity>
 
-                <View style={styles.actionButtons}>
+                    <Text style={styles.subSectionTitle}>Delivery Fee</Text>
+                    <TextInput
+                      style={styles.feeInput}
+                      keyboardType="numeric"
+                      value={deliveryFee}
+                      onChangeText={setDeliveryFee}
+                      placeholder="0.00"
+                    />
+                  </View>
+                )}
+
+                {selectedOrderType === "Takeaway" && (
+                  <View style={styles.sectionBox}>
+                    <Text style={styles.subSectionTitle}>Select Counter</Text>
+                    <TouchableOpacity
+                      style={styles.pickerButton}
+                      onPress={() => setShowCounterPicker(true)}
+                    >
+                      <Text
+                        style={
+                          selectedCounter
+                            ? styles.pickerText
+                            : styles.pickerPlaceholder
+                        }
+                      >
+                        {selectedCounter?.name || "Select a counter..."}
+                      </Text>
+                      <Ionicons name="chevron-down" size={20} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {selectedOrderType === "Online Order" && (
+                  <View style={styles.sectionBox}>
+                    <Text style={styles.subSectionTitle}>Select Platform</Text>
+                    <TouchableOpacity
+                      style={styles.pickerButton}
+                      onPress={() => setShowPlatformPicker(true)}
+                    >
+                      <Text
+                        style={
+                          selectedPlatform
+                            ? styles.pickerText
+                            : styles.pickerPlaceholder
+                        }
+                      >
+                        {selectedPlatform?.name || "Select a platform..."}
+                      </Text>
+                      <Ionicons name="chevron-down" size={20} color="#888" />
+                    </TouchableOpacity>
+
+                    <Text style={styles.subSectionTitle}>Delivery Fee</Text>
+                    <TextInput
+                      style={styles.feeInput}
+                      keyboardType="numeric"
+                      value={deliveryFee}
+                      onChangeText={setDeliveryFee}
+                      placeholder="0.00"
+                    />
+                  </View>
+                )}
+
+                <View style={styles.sectionBox}>
+                  <Text style={styles.subSectionTitle}>Select Customer</Text>
                   <TouchableOpacity
-                    style={styles.kotButton}
-                    onPress={() => handlePlaceOrder("kot")}
+                    style={styles.pickerButton}
+                    onPress={() => setShowCustomerPicker(true)}
                   >
-                    <Text style={styles.kotButtonText}>KOT & Bill</Text>
+                    {selectedCustomer ? (
+                      <Text style={styles.pickerText}>
+                        {selectedCustomer.full_name}
+                      </Text>
+                    ) : (
+                      <Text style={styles.pickerPlaceholder}>
+                        Select a customer...
+                      </Text>
+                    )}
+                    <Ionicons name="chevron-down" size={20} color="#888" />
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.billButton}
-                    onPress={() => handlePlaceOrder("bill")}
-                  >
-                    <Text style={styles.billButtonText}>Bill</Text>
-                  </TouchableOpacity>
+                  {(selectedOrderType === "Delivery" ||
+                    selectedOrderType === "Online Order") && (
+                    <>
+                      <Text style={styles.subSectionTitle}>
+                        Delivery Address
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.pickerButton}
+                        onPress={() => setShowAddressPicker(true)}
+                      >
+                        <Text
+                          style={
+                            selectedAddress
+                              ? styles.pickerText
+                              : styles.pickerPlaceholder
+                          }
+                        >
+                          {selectedAddress || "Enter delivery address..."}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color="#888" />
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
-              </View>
-            </KeyboardAvoidingView>
+
+                
+              </ScrollView>
+              <View style={styles.totalSection}>
+                  <Text style={styles.totalLabel}>Total Payment</Text>
+                  <Text style={styles.totalAmount}>
+                    QAR {totalAmount.toFixed(2)}
+                  </Text>
+
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={styles.kotButton}
+                      onPress={() => handlePlaceOrder("kot")}
+                    >
+                      <Text style={styles.kotButtonText}>KOT & Bill</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.billButton}
+                      onPress={() => handlePlaceOrder("bill")}
+                    >
+                      <Text style={styles.billButtonText}>Bill</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                </>
+            // </KeyboardAvoidingView>
           }
         />
       </View>
@@ -1197,6 +1206,18 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Medium",
     color: "#7e4bcc",
   },
+  resetText: {
+    color: "#e74c3c", // Red color for reset
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  cartHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+
   fixedHeader: {
     backgroundColor: "#fff",
     borderBottomWidth: 1,
@@ -1280,7 +1301,7 @@ const styles = StyleSheet.create({
   },
   categoriesContainer: {
     paddingHorizontal: 15,
-    paddingBottom: 18 ,
+    paddingBottom: 18,
     // marginBottom:10,
   },
   categoryItem: {
@@ -1395,9 +1416,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 20,
+    padding: 16,
     marginTop: 10,
     borderTopWidth: 1,
+    paddingBottom: 40, // To avoid last item cut off
+
     borderColor: "#e0d7f0",
   },
   sectionBox: {
@@ -1478,14 +1501,27 @@ const styles = StyleSheet.create({
     color: "#5d3a7e",
     marginBottom: 15,
   },
+  // totalSection: {
+  //   backgroundColor: "#f8f4ff",
+  //   borderRadius: 15,
+  //   padding: 15,
+  //   marginTop: 10,
+  //   borderWidth: 1,
+  //   borderColor: "#e0d7f0",
+  // },
   totalSection: {
-    backgroundColor: "#f8f4ff",
-    borderRadius: 15,
-    padding: 15,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: "#e0d7f0",
-  },
+  padding: 16,
+  backgroundColor: '#fff',
+  borderTopWidth: 1,
+  borderTopColor: '#eee',
+  // For iOS shadow
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: -2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  // For Android elevation
+  elevation: 5,
+},
   totalLabel: {
     fontSize: 18,
     fontWeight: "bold",
