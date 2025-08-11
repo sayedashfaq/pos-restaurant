@@ -13,8 +13,14 @@ import {
   Platform,
   Button,
   Modal,
+  Animated,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialIcons, FontAwesome } from "@expo/vector-icons";
@@ -27,9 +33,15 @@ const DeliveryBoyScreen = () => {
   const [amountReceived, setAmountReceived] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
   const cameraRef = useRef(null);
+  const [scaleValue] = useState(new Animated.Value(1));
+
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState("back");
   const [loading, setLoading] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState("cash");
+  const [currentPaymentOrder, setCurrentPaymentOrder] = useState(null);
+  console.log(currentPaymentOrder);
 
   const [scannedData, setScannedData] = useState(null);
   const [showScanPopup, setShowScanPopup] = useState(false);
@@ -78,6 +90,7 @@ const DeliveryBoyScreen = () => {
   };
 
   const [orders, setOrders] = useState([]);
+  console.log(orders, "orders");
 
   const handleBarCodeScanned = async ({ data }) => {
     if (!cameraReady) return;
@@ -153,6 +166,82 @@ const DeliveryBoyScreen = () => {
     Alert.alert("Success", "Order marked as delivered successfully");
     setActiveOrder(null);
     setAmountReceived("");
+  };
+
+  // const confirmPayment = async () => {
+  //   if (!currentPaymentOrder) return;
+
+  //   // if (selectedPayment === 'cash' && !cashAmount) {
+  //   //   Alert.alert('Enter Amount', 'Please enter the cash amount');
+  //   //   return;
+  //   // }
+
+  //   let paymentAmount = currentPaymentOrder.amount || 0;
+  //   try {
+  //     await OrderAPI.updateOrder(currentPaymentOrder.id, {
+  //       order_status: "settled",
+  //       payment_amount: paymentAmount,
+  //       payment_type: selectedPayment,
+  //     });
+
+  //     // Update the orders list
+  //     setOrders(
+  //       orders.map((order) =>
+  //         order.id === currentPaymentOrder.id
+  //           ? {
+  //               ...order,
+  //               status: "settled",
+  //               order: { ...order.order, is_paid: true },
+  //             }
+  //           : order
+  //       )
+  //     );
+
+  //     setShowPaymentModal(false);
+  //     setCurrentPaymentOrder(null);
+  //     setCashAmount("");
+  //     Alert.alert("Payment Confirmed", "Order has been settled successfully");
+  //   } catch (error) {
+  //     Alert.alert("Error", `Failed to settle order: ${error.message || error}`);
+  //     console.error(error);
+  //   }
+  // };
+  const confirmPayment = async () => {
+    if (!currentPaymentOrder) return;
+
+    try {
+      // Make API call to update order status
+      await OrderAPI.updateOrder(currentPaymentOrder.id, {
+        order_status: "settled",
+        payment_amount: currentPaymentOrder.amount,
+        payment_type: selectedPayment,
+      });
+
+      // Update the orders list more accurately
+      setOrders(
+        orders.map((order) => {
+          if (order.id === currentPaymentOrder.id) {
+            return {
+              ...order,
+              status: "settled",
+              order: {
+                ...order.order,
+                is_paid: true,
+              },
+            };
+          }
+          return order;
+        })
+      );
+
+      setShowPaymentModal(false);
+      setCurrentPaymentOrder(null);
+      Alert.alert("Payment Confirmed", "Order has been settled successfully");
+      fetchDeliveryOrders();
+    } catch (error) {
+      Alert.alert("Error", `Failed to settle order: ${error.message || error}`);
+      console.error(error);
+    }
   };
 
   // const renderOrderItem = ({ item }) => (
@@ -311,6 +400,22 @@ const DeliveryBoyScreen = () => {
           <Ionicons name="time" size={16} color="#555" />
           <Text style={styles.orderText}>Delivery: {deliveryTime}</Text>
         </View>
+        {/* Settle Button for unpaid orders */}
+        {!order.is_paid && (
+          <TouchableOpacity
+            style={styles.settleButton}
+            onPress={() => {
+              setCurrentPaymentOrder({
+                id: order.id,
+                orderNumber: orderNumber,
+                amount: order.price,
+              });
+              setShowPaymentModal(true);
+            }}
+          >
+            <Text style={styles.settleButtonText}>Settle Payment</Text>
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     );
   };
@@ -657,31 +762,102 @@ const DeliveryBoyScreen = () => {
       </TouchableOpacity>
 
       <Text style={styles.sectionHeader}>Your Orders</Text>
-      <FlatList
-        data={orders}
-        renderItem={renderOrderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      <>
+        <FlatList
+          data={orders}
+          renderItem={renderOrderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.listContent, { paddingBottom: 70 }]} // add extra padding
+          showsVerticalScrollIndicator={false}
+        />
+        <Modal
+          visible={showPaymentModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => {
+            setShowPaymentModal(false);
+            setCurrentPaymentOrder(null);
+          }}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.keyboardView}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Settle Payment</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Order {currentPaymentOrder?.orderNumber || "N/A"}
+                  </Text>
+                  <Text style={styles.sectionTitle}>Payment Type</Text>
+                  <View style={styles.paymentTypes}>
+                    {["Cash", "Card", "Online"].map((type) => (
+                      <TouchableOpacity
+                        key={type}
+                        style={[
+                          styles.paymentButton,
+                          selectedPayment === type.toLowerCase() &&
+                            styles.selectedPayment,
+                        ]}
+                        onPress={() => setSelectedPayment(type.toLowerCase())}
+                      >
+                        <Text
+                          style={[
+                            styles.paymentText,
+                            selectedPayment === type.toLowerCase() &&
+                              styles.selectedPaymentText,
+                          ]}
+                        >
+                          {type}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <View style={styles.totalContainer}>
+                    <Text style={styles.totalLabel}>Order Total</Text>
+                    <Text style={styles.totalAmount}>
+                      QAR {currentPaymentOrder?.amount || 0}
+                    </Text>
+                  </View>
+
+                  <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+                    <TouchableOpacity
+                      style={styles.confirmButton}
+                      onPress={confirmPayment}
+                    >
+                      <LinearGradient
+                        colors={["#6c5ce7", "#5a67d8"]}
+                        style={styles.gradientButton}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                      >
+                        <Text style={styles.confirmButtonText}>
+                          Confirm Payment
+                        </Text>
+                        <MaterialIcons name="check" size={24} color="white" />
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </Animated.View>
+
+                  <TouchableOpacity
+                    style={styles.closeButtonSettle}
+                    onPress={() => {
+                      setShowPaymentModal(false);
+                      setCurrentPaymentOrder(null);
+                    }}
+                  >
+                    <Text style={styles.closeButtonTextSettle}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
+        </Modal>
+      </>
       {/* Footer Navigation */}
       <View style={styles.footer}>
-        {/* <TouchableOpacity
-                style={styles.footerButton}
-                onPress={() => navigation.navigate("Orders")}
-              >
-                <Ionicons name="list" size={24} color="#7e4bcc" />
-                <Text style={styles.footerButtonText}>Orders</Text>
-              </TouchableOpacity> */}
-
-        {/* <TouchableOpacity
-                style={styles.footerButton}
-                onPress={() => navigation.navigate("Menu")}
-              >
-                <Ionicons name="fast-food" size={24} color="#7e4bcc" />
-                <Text style={styles.footerButtonText}>Menu</Text>
-              </TouchableOpacity> */}
-
         <TouchableOpacity style={styles.footerButton} onPress={handleLogout}>
           <Ionicons name="log-out" size={24} color="#7e4bcc" />
           <Text style={styles.footerButtonText}>Logout</Text>
@@ -702,7 +878,42 @@ const styles = StyleSheet.create({
     color: "#7e4bcc",
     fontSize: 16,
   },
-
+  keyboardView: {
+    flex: 1,
+  },
+  selectedPaymentText: {
+    color: "#6c5ce7",
+    fontWeight: "bold",
+  },
+  confirmButton: {
+    borderRadius: 15,
+    overflow: "hidden",
+    marginTop: 10,
+  },
+  gradientButton: {
+    padding: 18,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  confirmButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 18,
+    marginRight: 10,
+    fontFamily: "Poppins-Bold",
+  },
+  closeButtonSettle: {
+    marginTop: 15,
+    padding: 15,
+    alignItems: "center",
+  },
+  closeButtonTextSettle: {
+    color: "#796be6ff",
+    fontWeight: "bold",
+    fontSize: 16,
+    fontFamily: "Poppins-SemiBold",
+  },
   successBox: {
     backgroundColor: "#e8f5e9",
     borderLeftWidth: 4,
@@ -718,6 +929,17 @@ const styles = StyleSheet.create({
   },
   errorButton: {
     backgroundColor: "#f44336",
+  },
+  settleButton: {
+    backgroundColor: "#6c5ce7",
+    padding: 10,
+    borderRadius: 5,
+    marginTop: 10,
+    alignItems: "center",
+  },
+  settleButtonText: {
+    color: "white",
+    fontWeight: "bold",
   },
 
   // Loading indicator
@@ -749,6 +971,7 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   footer: {
+    marginTop: 4,
     position: "absolute",
     bottom: 0,
     left: 0,
@@ -1009,6 +1232,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 10,
   },
+  closeButtonText: {
+    color: "#6c5ce7",
+    fontWeight: "bold",
+    fontSize: 16,
+    fontFamily: "Poppins-SemiBold",
+  },
   paddedCloseButton: {
     top: 60, // Move the close button down from the top
     // right: 20,
@@ -1088,11 +1317,44 @@ const styles = StyleSheet.create({
     color: "#555",
     fontWeight: "500",
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "90%",
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 25,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 5,
+    color: "#333",
+    fontFamily: "Poppins-Bold",
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 20,
+    fontFamily: "Poppins-Regular",
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#2c3e50",
     marginBottom: 15,
+    fontFamily: "Poppins-Bold",
   },
   itemRow: {
     flexDirection: "row",
@@ -1140,13 +1402,33 @@ const styles = StyleSheet.create({
   totalAmount: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: "#6c5ce7",
+    fontFamily: "Poppins-Bold",
   },
   paymentMethodContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 10,
     marginBottom: 20,
+  },
+  paymentTypes: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  paymentButton: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    padding: 12,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: "center",
+    backgroundColor: "#f8f9ff",
+  },
+  selectedPayment: {
+    backgroundColor: "#eef2ff",
+    borderColor: "#6c5ce7",
   },
   paymentMethod: {
     width: "48%",
