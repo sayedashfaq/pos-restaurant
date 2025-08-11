@@ -77,98 +77,9 @@ const DeliveryBoyScreen = () => {
     }
   };
 
-  const [orders, setOrders] = useState([
-    // {
-    //   id: 'ORD-1284',
-    //   customerName: 'Rajesh Kumar',
-    //   deliveryAddress: '24, Hamad, Qatar',
-    //   customerPhone: '9876543210',
-    //   totalAmount: 450,
-    //   status: 'assigned',
-    //   items: [
-    //     { name: 'Paneer Butter Masala', quantity: 2, price: 180 },
-    //     { name: 'Garlic Naan', quantity: 4, price: 160 },
-    //     { name: 'Mango Lassi', quantity: 2, price: 110 }
-    //   ],
-    //   distance: '2.5 km',
-    //   time: '15 min',
-    //   restaurant: 'NassResto'
-    // },
-    // {
-    //   id: 'ORD-1285',
-    //   customerName: 'Priya Sharma',
-    //   deliveryAddress: 'Block B, Apartment 302, Badam',
-    //   customerPhone: '8765432109',
-    //   totalAmount: 620,
-    //   status: 'assigned',
-    //   items: [
-    //     { name: 'Chicken Biryani', quantity: 1, price: 220 },
-    //     { name: 'Veg Fried Rice', quantity: 1, price: 150 },
-    //     { name: 'Chicken 65', quantity: 1, price: 180 },
-    //     { name: 'Coke', quantity: 2, price: 70 }
-    //   ],
-    //   distance: '3.2 km',
-    //   time: '20 min',
-    //   restaurant: 'NassResto'
-    // }
-  ]);
+  const [orders, setOrders] = useState([]);
 
-  // const handleBarCodeScanned = async ({ data }) => {
-  //   if (!cameraReady) return;
-
-  //   setIsScanning(false);
-  //   setCameraReady(false); // Reset camera ready state
-
-  //   try {
-  //     // Show loading state
-  //     setScanResult({
-  //       loading: true,
-  //       message: "Verifying QR code...",
-  //     });
-  //     setShowScanResult(true);
-
-  //     // Verify with backend
-  //     const response = await OrderAPI.verifyQRCode(data);
-
-  //     if (response.order) {
-  //       // Success - order verified
-  //       setScanResult({
-  //         success: true,
-  //         message: "Order verified successfully!",
-  //         order: response.order,
-  //       });
-
-  //       // Update active order
-  //       setActiveOrder(response.order);
-
-  //       // Update orders list
-  //       setOrders((prevOrders) => [...prevOrders, response.order]);
-
-  //       // Update daily stats
-  //       setDailyStats((prev) => ({
-  //         deliveries: prev.deliveries + 1,
-  //         collectedAmount: prev.collectedAmount + response.order.totalAmount,
-  //       }));
-  //     } else {
-  //       // Verification failed
-  //       setScanResult({
-  //         success: false,
-  //         message: response.message || "QR verification failed",
-  //         error: true,
-  //       });
-  //     }
-  //   } catch (error) {
-  //     // API error
-  //     setScanResult({
-  //       success: false,
-  //       message: error.message || "Failed to verify QR code",
-  //       error: true,
-  //     });
-  //   } finally {
-  //     setShowScanResult(true);
-  //   }
-  // };
-const handleBarCodeScanned = async ({ data }) => {
+  const handleBarCodeScanned = async ({ data }) => {
     if (!cameraReady) return;
 
     setIsScanning(false);
@@ -189,10 +100,9 @@ const handleBarCodeScanned = async ({ data }) => {
           success: true,
           message: response,
         });
-        
-        fetchDeliveryOrders(); 
 
-      } 
+        fetchDeliveryOrders();
+      }
       // Handle already picked case
       else if (response === "Order already picked by you") {
         setScanResult({
@@ -200,7 +110,6 @@ const handleBarCodeScanned = async ({ data }) => {
           message: response,
           warning: true, // Add a warning type for UI differentiation
         });
-        
       }
       // Handle other cases
       else {
@@ -220,86 +129,6 @@ const handleBarCodeScanned = async ({ data }) => {
       setShowScanResult(true);
     }
   };
-
-  // const handleBarCodeScanned = async ({ data }) => {
-  //   if (!cameraReady) return;
-
-  //   setIsScanning(false);
-
-  //   try {
-  //     // Verify QR with backend
-  //     const response = await OrderAPI.verifyQRCode(data);
-
-  //     if (response.order) {
-  //       setActiveOrder(response.order); // Show order details
-  //       Alert.alert('Success', 'Order verified!');
-  //     } else {
-  //       Alert.alert('Invalid QR', response.message || 'QR verification failed');
-  //     }
-  //   } catch (error) {
-  //     Alert.alert('Error', error.message || 'Failed to verify QR');
-  //   }
-  // };
-
-  //  const handleBarCodeScanned = ({ data }) => {
-  //   if (!cameraReady) {
-  //     console.log("Camera not ready yet");
-  //     return;
-  //   }
-
-  //   console.log("Scanned data:", data); // Add this for debugging
-  //   setIsScanning(false);
-
-  //   try {
-  //     // Try to parse as JSON (for structured data)
-  //     let scannedData;
-  //     try {
-  //       scannedData = JSON.parse(data);
-  //     } catch (e) {
-  //       // If not JSON, treat as plain text (for simple QR codes)
-  //       scannedData = {
-  //         orderId: data,
-  //         customerName: `Customer ${Math.floor(Math.random() * 100)}`,
-  //         amount: Math.floor(Math.random() * 500) + 100,
-  //         items: [
-  //           { name: 'Item 1', quantity: 1, price: 100 },
-  //           { name: 'Item 2', quantity: 2, price: 150 }
-  //         ]
-  //       };
-  //     }
-
-  //     // Create a dummy order if not found
-  //     const verifiedOrder = {
-  //       id: scannedData.orderId || `ORD-${Math.floor(Math.random() * 10000)}`,
-  //       customerName: scannedData.customerName || 'Test Customer',
-  //       deliveryAddress: '123 Test Street, Doha',
-  //       customerPhone: '555-1234',
-  //       totalAmount: scannedData.amount || 250,
-  //       status: 'assigned',
-  //       items: scannedData.items || [
-  //         { name: 'Test Item 1', quantity: 1, price: 100 },
-  //         { name: 'Test Item 2', quantity: 1, price: 150 }
-  //       ],
-  //       distance: `${Math.floor(Math.random() * 5) + 1} km`,
-  //       time: `${Math.floor(Math.random() * 30) + 10} min`,
-  //       restaurant: 'Test Restaurant',
-  //       rawData: data // Keep original scanned data
-  //     };
-
-  //     setActiveOrder(verifiedOrder);
-
-  //     // For testing - show what was scanned
-  //     Alert.alert(
-  //       'QR Scanned Successfully',
-  //       `Data: ${data}\n\nOrder ID: ${verifiedOrder.id}`,
-  //       [{ text: 'OK' }]
-  //     );
-
-  //   } catch (error) {
-  //     console.error('Error processing QR code:', error);
-  //     Alert.alert('Error', 'Failed to process QR code. Please try again.');
-  //   }
-  // };
 
   const markAsDelivered = () => {
     if (paymentMethod === "cash" && !amountReceived) {
@@ -369,7 +198,7 @@ const handleBarCodeScanned = async ({ data }) => {
 
   const renderOrderItem = ({ item }) => {
     // Fallbacks to prevent crashes
-    const order =item?.order || {};
+    const order = item?.order || {};
     const orderNumber = order?.order_number || `#${item?.id}`;
     const status = item?.status || "unknown";
     const pickupTime = item?.pickup_time
@@ -384,6 +213,7 @@ const handleBarCodeScanned = async ({ data }) => {
           minute: "2-digit",
         })
       : "Pending";
+    const paidStatus = order.is_paid ? "Paid" : "Unpaid";
 
     const customer = item?.customer || {};
     const address = item?.address || {};
@@ -420,10 +250,23 @@ const handleBarCodeScanned = async ({ data }) => {
             ]}
           >
             <Text style={styles.statusText}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
+              {status
+                .replace(/_/g, " ")
+                .replace(/\b\w/g, (l) => l.toUpperCase())}
             </Text>
           </View>
         </View>
+
+        {/* Price & Payment */}
+        {(order?.price || order?.is_paid !== undefined) && (
+          <View style={styles.orderInfo}>
+            <Ionicons name="cash" size={16} color="#555" />
+            <Text style={styles.orderText}>
+              {order?.price ? `QAR ${order.price}` : ""}
+              {order?.is_paid !== undefined && ` - ${paidStatus}`}
+            </Text>
+          </View>
+        )}
 
         {/* Notes (optional) */}
         {item?.notes && (
@@ -940,7 +783,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 20,
-    marginTop:30,
+    marginTop: 30,
   },
   welcome: {
     fontSize: 18,
